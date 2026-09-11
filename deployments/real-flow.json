@@ -1,0 +1,11 @@
+{
+  "generatedAt": "2026-09-08T06:07:00.000Z",
+  "shipmentId": "0xa094d8a214574ef58de22f7aacd78d1b5a9ef035b42721ab7de43131ddf0c6ca",
+  "facilityId": "0xffca4087ad7d4836327b41997eb7b80d6c72829f871544065c5133ad43caa03b",
+  "sourceRegistry": "0xE3e0b01141860541B7247f0E05b1Ea6cd60556BE",
+  "creditcoinFinancing": "0xe378E93D5eC4dDa719355c5274d85e97c3a0A500",
+  "milestoneType": 1,
+  "chainKey": 1,
+  "blockHeight": 11638638,
+  "note": "Fallback mapping updated for the user's live facility; source transaction hashes are discovered from Sepolia events."
+}

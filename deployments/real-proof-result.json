@@ -1,0 +1,8 @@
+{
+  "adapter": "0xaAB31Fb58cf430689A48a5b3d2a632a38Fbb8f05",
+  "proofTx": "0xea6a67ad4e44e6c5f972ab374fac9ac056aba69f50ba7614e6576c8ee9713e66",
+  "proofReceiptBlock": 5433373,
+  "sourceTransaction": "0xfdaa449d765dfa2fcb05ef292d18f7a1c061d63ee3cbe0b1454fa6854f7db262",
+  "facilityId": "0x15ec072e594a00565b1bba259b5919b9f81398c57a59819612ce0b3b351a2573",
+  "milestoneId": "0xd57bc97daff7b16d6c34a3a23360d0ea38244b2a404c678b293d05c7b231feb5"
+}

@@ -1,0 +1,20 @@
+{
+  "processed": {
+    "0xd57bc97daff7b16d6c34a3a23360d0ea38244b2a404c678b293d05c7b231feb5": {
+      "facilityId": "0x15ec072e594a00565b1bba259b5919b9f81398c57a59819612ce0b3b351a2573",
+      "releaseTx": "0xac110813ce962c8c6e27697a44b6af70099dd0d2bc57b83c2d264cd1f8e73299",
+      "sourceEventTx": "0xfdaa449d765dfa2fcb05ef292d18f7a1c061d63ee3cbe0b1454fa6854f7db262"
+    },
+    "0x4b7d0d3c0e4e5bd90f03a2414210b92337d6a14d02f003d05b91a6c0a1fae6ea": {
+      "facilityId": "0xffca4087ad7d4836327b41997eb7b80d6c72829f871544065c5133ad43caa03b",
+      "releaseTx": "0xfa1c11d0f970b6616e9e83789415baaf4e272c21d7f35d58d1bd7f1f3ab174f9",
+      "sourceEventTx": "0x67ee61df363f99cce62a5d64855ccfb97a0abdedda3ddad06266c1d3bde91e54"
+    },
+    "0x905da3aad41e735649b24516c3ae304c253b60b08a9dbe473582cfe696f79b71": {
+      "facilityId": "0xffca4087ad7d4836327b41997eb7b80d6c72829f871544065c5133ad43caa03b",
+      "releaseTx": "0x5308d6a68e07dd71fc5d781ba96e3befaaabee1737454ca8e4cd58cbb64c402d",
+      "sourceEventTx": "0x06c2210ac85c7efb96b1c864915b2c159e1436698c579007c25f0ab7464be49c"
+    }
+  },
+  "retryQueue": []
+}

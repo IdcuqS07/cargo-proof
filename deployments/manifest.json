@@ -1,0 +1,25 @@
+{
+  "generatedAt": "2026-09-05T06:09:43.019Z",
+  "networks": {
+    "sepolia": {
+      "chainId": "11155111",
+      "deployer": "0x7119d53f0241F16c96b521ccF862473e18a29d6b",
+      "ShipmentRegistry": {
+        "address": "0xE3e0b01141860541B7247f0E05b1Ea6cd60556BE",
+        "deploymentTx": "0xbba98455b91e16948c833cd3d4087ccb279ea613f7eb50fa86de27061bb8e4db"
+      }
+    },
+    "creditcoin": {
+      "chainId": "102031",
+      "deployer": "0x7119d53f0241F16c96b521ccF862473e18a29d6b",
+      "CargoProofFinancing": {
+        "address": "0xe378E93D5eC4dDa719355c5274d85e97c3a0A500",
+        "deploymentTx": "0xd4f2af2dfab90039cee87f67b7e775a467960485c1c9b14b0840bae7eb7a2477"
+      },
+      "attestcoinAdapter": "0xaAB31Fb58cf430689A48a5b3d2a632a38Fbb8f05",
+      "attestcoinAdapterDeploymentTx": "0x8fc9de08c15cd561335d4eeaf00999172320f10ac641b213f65277be2b125a12",
+      "attestcoinAdapterAuthorizationTx": "0x689135dae381a498daddbd15a30c2a9014d7dcd474074c973e38559e19094863",
+      "attestcoinAdapterSourceRegistry": "0xE3e0b01141860541B7247f0E05b1Ea6cd60556BE"
+    }
+  }
+}
