@@ -64,7 +64,8 @@ async function loadLiveShipments(): Promise<LiveShipment[]> {
   const provider = new JsonRpcProvider(SEPOLIA_RPC);
   const registry = new Contract(SOURCE_REGISTRY_ADDRESS, SOURCE_REGISTRY_READ_ABI, provider);
   const latest = await provider.getBlockNumber();
-  const fromBlock = Math.max(0, latest - 100000);
+  // Public RPC providers cap eth_getLogs ranges at 50,000 blocks.
+  const fromBlock = Math.max(0, latest - 45000);
   const registrations = await registry.queryFilter(registry.filters.ShipmentRegistered(), fromBlock, latest);
   const milestones = await registry.queryFilter(registry.filters.MilestoneRecorded(), fromBlock, latest);
   return registrations.map((log) => {
@@ -338,7 +339,7 @@ export default function Home() {
   const openCreate = () => setModalOpen(true);
   const pauseFacility = (id: string) => { setFacilities((current) => current.map((facility) => facility.id === id ? { ...facility, status: "PAUSED" } : facility)); toast.success(`${id} paused — future tranche releases blocked`); };
   const inspect = (facility: Facility) => { setSelected(facility); void loadTranches(facility.id); toast(`Inspecting ${facility.id}`); };
-  const loadTranches = async (facilityId: string) => { const provider = new JsonRpcProvider(CREDITCOIN_RPC); const contract = new Contract(FINANCING_ADDRESS, FINANCING_READ_ABI, provider); const logs = await contract.queryFilter(contract.filters.TrancheReleased(facilityId), -100000, "latest"); const items = logs.map((log, index) => { const args = (log as any).args; return { label: `Tranche ${String(Number(args.trancheIndex) + 1).padStart(2, "0")}`, amount: Number(args.amount), status: "RELEASED" as const, milestone: args.milestoneId.slice(0, 12) + "…", tx: log.transactionHash, time: new Date().toLocaleString() }; }); setTrancheItems((current) => ({ ...current, [facilityId]: items })); };
+  const loadTranches = async (facilityId: string) => { const provider = new JsonRpcProvider(CREDITCOIN_RPC); const contract = new Contract(FINANCING_ADDRESS, FINANCING_READ_ABI, provider); const latest = await provider.getBlockNumber(); const logs = await contract.queryFilter(contract.filters.TrancheReleased(facilityId), Math.max(0, latest - 45000), latest); const items = logs.map((log, index) => { const args = (log as any).args; return { label: `Tranche ${String(Number(args.trancheIndex) + 1).padStart(2, "0")}`, amount: Number(args.amount), status: "RELEASED" as const, milestone: args.milestoneId.slice(0, 12) + "…", tx: log.transactionHash, time: new Date().toLocaleString() }; }); setTrancheItems((current) => ({ ...current, [facilityId]: items })); };
   const handleCreate = (facility: Facility) => { setFacilities((current) => [facility, ...current]); setModalOpen(false); setView("facilities"); toast.success(`${facility.id} created on Creditcoin testnet`); };
   const advanceDemo = () => { setDemoFailed(false); setDemoStep((current) => { const next = Math.min(current + 1, 4); toast.success(next === 4 ? "Proof verified — tranche released" : `Demo advanced to step ${next + 1} of 4`); return next; }); };
   const failDemo = () => { setDemoFailed(true); toast.error("Proof rejected — payout blocked by ASC"); };
