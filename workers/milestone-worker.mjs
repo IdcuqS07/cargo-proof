@@ -43,7 +43,7 @@ async function queryLogsInChunks(rpc, address, topics, fromBlock, toBlock) {
 }
 
 async function resolveLogTransactionHash(log) {
-  if (log.transactionHash || log.hash || log.txHash) return log.transactionHash || log.hash || log.txHash;
+  if (log.transactionHash || log.transaction_hash || log.txHash || log.transaction || log.hash) return log.transactionHash || log.transaction_hash || log.txHash || log.transaction || log.hash;
   if (log.blockHash && log.transactionIndex !== undefined) {
     const tx = await provider.send("eth_getTransactionByBlockHashAndIndex", [log.blockHash, `0x${Number(log.transactionIndex).toString(16)}`]);
     return tx?.hash;
@@ -134,6 +134,8 @@ async function run() {
   console.log(`Worker ${once ? "one-shot" : "continuous"} (${databaseEnabled() ? "database mappings" : "fallback mappings"}): scanning from ${fromBlock} to ${latest}`);
   const eventTopic = sourceRegistry.interface.getEvent("MilestoneRecorded").topicHash;
   const rawLogs = await queryLogsInChunks(provider, sourceRegistryAddress, [eventTopic], fromBlock, latest);
+  const sample = rawLogs[0];
+  console.log(`[Worker] Raw RPC log keys=${Object.keys(sample || {}).join(",")} candidates=${JSON.stringify({ transactionHash: sample?.transactionHash, transaction_hash: sample?.transaction_hash, txHash: sample?.txHash, transaction: sample?.transaction, hash: sample?.hash, blockHash: sample?.blockHash, transactionIndex: sample?.transactionIndex, logIndex: sample?.logIndex })}`);
   const events = await Promise.all(rawLogs.map(async (log) => {
     const parsed = sourceRegistry.interface.parseLog(log);
     const transactionHash = await resolveLogTransactionHash(log);
