@@ -13,7 +13,7 @@ declare global {
 
 export const SUPPORTED_WALLET_NETWORKS = {
   sepolia: { chainId: BigInt(11155111), name: "Ethereum Sepolia", hex: "0xaa36a7" },
-  creditcoin: { chainId: BigInt(102031), name: "Creditcoin testnet", hex: "0x18d4f" },
+  creditcoin: { chainId: BigInt(102031), name: "Creditcoin testnet", hex: "0x18e8f" },
 } as const;
 export type WalletNetwork = keyof typeof SUPPORTED_WALLET_NETWORKS;
 export type WalletSnapshot = { address: string; chainId: bigint; network: WalletNetwork | null; balance: string; source: "injected" | "walletconnect" };
