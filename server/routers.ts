@@ -15,6 +15,7 @@ import {
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { SignJWT } from "jose";
 
 const runWorker = promisify(execFile);
 
@@ -36,13 +37,20 @@ export const appRouter = router({
     }),
   }),
   walletAuth: router({
-    verifySignature: publicProcedure.input(z.object({ address: z.string(), message: z.string().min(1).max(1000), signature: z.string().min(1) })).mutation(({ input }) => {
+    verifySignature: publicProcedure.input(z.object({ address: z.string(), message: z.string().min(1).max(1000), signature: z.string().min(1) })).mutation(async ({ input }) => {
       const timestampMatch = input.message.match(/Timestamp:\s*(.+)/);
       const timestamp = timestampMatch?.[1] ? Date.parse(timestampMatch[1].trim()) : NaN;
       if (!Number.isFinite(timestamp) || Math.abs(Date.now() - timestamp) > 5 * 60 * 1000) throw new Error("Wallet signature has expired. Please sign a fresh message.");
       const recovered = getAddress(verifyMessage(input.message, input.signature));
       if (recovered !== getAddress(input.address)) throw new Error("Wallet signature does not match the connected address.");
-      return { verified: true, address: recovered } as const;
+      const secret = process.env.JWT_SECRET;
+      if (!secret) throw new Error("JWT_SECRET is not configured on the API.");
+      const token = await new SignJWT({ address: recovered.toLowerCase() })
+        .setProtectedHeader({ alg: "HS256" })
+        .setIssuedAt()
+        .setExpirationTime("12h")
+        .sign(new TextEncoder().encode(secret));
+      return { verified: true, address: recovered, token } as const;
     }),
   }),
   cargoProof: router({

@@ -41,6 +41,7 @@ queryClient.getMutationCache().subscribe(event => {
 // fallback so a missing VITE_API_URL cannot turn API calls into HTML/405 errors.
 const configuredApiBaseUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "");
 const apiBaseUrl = configuredApiBaseUrl || (import.meta.env.PROD ? "https://cargo-proof-production.up.railway.app" : "");
+const WALLET_TOKEN_KEY = "cargo-proof-wallet-token";
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
@@ -52,6 +53,8 @@ const trpcClient = trpc.createClient({
         // session into sessionStorage so we can forward it as a Bearer token.
         // The regular OAuth cookie flow keeps working and takes priority server-side.
         try {
+          const walletToken = localStorage.getItem(WALLET_TOKEN_KEY);
+          if (walletToken) return { Authorization: `Bearer ${walletToken}` };
           const raw = sessionStorage.getItem("manus-cookie");
           if (raw) {
             const prefix = `${COOKIE_NAME}=`;
