@@ -60,7 +60,9 @@ export const appRouter = router({
     notifications: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).optional()).query(({ input }) => listNotifications(input?.limit ?? 50)),
     markNotificationRead: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input }) => markNotificationRead(input.id)),
     createNotification: protectedProcedure.input(z.object({ type: z.enum(["PROOF_FAILED", "RETRY_QUEUE", "RELEASED"]), severity: z.enum(["INFO", "WARNING", "ERROR"]), title: z.string().min(1).max(180), message: z.string().min(1), dedupeKey: z.string().min(1).max(180) })).mutation(({ input }) => createNotification(input)),
-    retryWorker: protectedProcedure.mutation(async () => {
+    // Testnet operation: the worker is idempotent and this action is exposed
+    // without OAuth so operators can recover failed indexing from the dashboard.
+    retryWorker: publicProcedure.mutation(async () => {
       const workerPath = path.join(process.cwd(), "workers", "milestone-worker.mjs");
       try {
         const result = await runWorker(process.execPath, [workerPath, "--once"], { env: process.env, timeout: 180_000, maxBuffer: 2 * 1024 * 1024 });
