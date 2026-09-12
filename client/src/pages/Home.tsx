@@ -52,11 +52,20 @@ const SOURCE_REGISTRY_ADDRESS = "0xE3e0b01141860541B7247f0E05b1Ea6cd60556BE";
 const SOURCE_REGISTRY_READ_ABI = ["event ShipmentRegistered(bytes32 indexed shipmentId,address indexed borrower,address indexed lender,bytes32 cargoHash)", "event MilestoneRecorded(bytes32 indexed shipmentId,bytes32 indexed milestoneId,uint8 milestoneType,uint256 occurredAt,bytes32 metadataHash,bytes32 sourceTxHash)"];
 const FINANCING_READ_ABI = ["function getFacility(bytes32) view returns (tuple(bytes32 shipmentId,address lender,address borrower,uint256 principal,uint256 releasedAmount,uint8 trancheCount,uint8 nextMilestone,uint256 deadline,uint8 status,bool exists))", "event FacilityCreated(bytes32 indexed facilityId,bytes32 indexed shipmentId,address indexed lender,address borrower,uint256 principal,uint8 trancheCount,uint256 deadline)", "event TrancheReleased(bytes32 indexed facilityId,uint8 indexed trancheIndex,uint256 amount,bytes32 milestoneId,bytes32 proofHash,bytes32 payoutTxHash)"];
 
+async function queryLogsInChunks(contract: Contract, filter: unknown, fromBlock: number, toBlock: number) {
+  const logs: any[] = [];
+  for (let start = fromBlock; start <= toBlock; start += 5000) {
+    const end = Math.min(start + 4999, toBlock);
+    logs.push(...await contract.queryFilter(filter as any, start, end));
+  }
+  return logs;
+}
+
 async function loadOnchainFacilities(): Promise<Facility[]> {
   const provider = new JsonRpcProvider(CREDITCOIN_RPC);
   const contract = new Contract(FINANCING_ADDRESS, FINANCING_READ_ABI, provider);
   const latest = await provider.getBlockNumber();
-  const logs = await contract.queryFilter(contract.filters.FacilityCreated(), Math.max(0, latest - 45000), latest);
+  const logs = await queryLogsInChunks(contract, contract.filters.FacilityCreated(), Math.max(0, latest - 45000), latest);
   return Promise.all(logs.map(async (log) => {
     const args = (log as any).args;
     const value = await contract.getFacility(args.facilityId);
@@ -71,8 +80,8 @@ async function loadLiveShipments(): Promise<LiveShipment[]> {
   const latest = await provider.getBlockNumber();
   // Public RPC providers cap eth_getLogs ranges at 50,000 blocks.
   const fromBlock = Math.max(0, latest - 45000);
-  const registrations = await registry.queryFilter(registry.filters.ShipmentRegistered(), fromBlock, latest);
-  const milestones = await registry.queryFilter(registry.filters.MilestoneRecorded(), fromBlock, latest);
+  const registrations = await queryLogsInChunks(registry, registry.filters.ShipmentRegistered(), fromBlock, latest);
+  const milestones = await queryLogsInChunks(registry, registry.filters.MilestoneRecorded(), fromBlock, latest);
   return registrations.map((log) => {
     const args = (log as any).args;
     const shipmentMilestones = milestones.filter((item) => (item as any).args?.shipmentId?.toLowerCase() === args.shipmentId.toLowerCase());
@@ -327,7 +336,7 @@ export default function Home() {
   const openCreate = () => setModalOpen(true);
   const pauseFacility = async (id: string) => { try { const result = await pauseFacilityOnchain(id); toast.success(`Facility paused: ${result.txHash.slice(0, 10)}…`); const facilities = await loadOnchainFacilities(); setFacilities(facilities); } catch (error) { toast.error(error instanceof Error ? error.message : "Pause transaction failed"); } };
   const inspect = (facility: Facility) => { setSelected(facility); void loadTranches(facility.id); toast(`Inspecting ${facility.id}`); };
-  const loadTranches = async (facilityId: string) => { const provider = new JsonRpcProvider(CREDITCOIN_RPC); const contract = new Contract(FINANCING_ADDRESS, FINANCING_READ_ABI, provider); const latest = await provider.getBlockNumber(); const logs = await contract.queryFilter(contract.filters.TrancheReleased(facilityId), Math.max(0, latest - 45000), latest); const items = logs.map((log, index) => { const args = (log as any).args; return { label: `Tranche ${String(Number(args.trancheIndex) + 1).padStart(2, "0")}`, amount: Number(args.amount), status: "RELEASED" as const, milestone: args.milestoneId.slice(0, 12) + "…", tx: log.transactionHash, time: new Date().toLocaleString() }; }); setTrancheItems((current) => ({ ...current, [facilityId]: items })); };
+  const loadTranches = async (facilityId: string) => { const provider = new JsonRpcProvider(CREDITCOIN_RPC); const contract = new Contract(FINANCING_ADDRESS, FINANCING_READ_ABI, provider); const latest = await provider.getBlockNumber(); const logs = await queryLogsInChunks(contract, contract.filters.TrancheReleased(facilityId), Math.max(0, latest - 45000), latest); const items = logs.map((log, index) => { const args = (log as any).args; return { label: `Tranche ${String(Number(args.trancheIndex) + 1).padStart(2, "0")}`, amount: Number(args.amount), status: "RELEASED" as const, milestone: args.milestoneId.slice(0, 12) + "…", tx: log.transactionHash, time: new Date().toLocaleString() }; }); setTrancheItems((current) => ({ ...current, [facilityId]: items })); };
   const handleCreate = async (facility: Facility) => { try { await upsertMappingMutation.mutateAsync({ shipmentId: keccak256(toUtf8Bytes(facility.shipment)), facilityId: facility.id, sourceRegistry: SOURCE_REGISTRY_ADDRESS, chainKey: 1 }); } catch (error) { toast.error(error instanceof Error ? `Facility created, but worker mapping failed: ${error.message}` : "Facility mapping failed"); } const facilities = await loadOnchainFacilities(); setFacilities(facilities); setModalOpen(false); setView("facilities"); toast.success(`${facility.id} created on Creditcoin testnet`); };
   const inspectTransaction = (label: string, tx: string) => { if (selected) setTransaction({ label, tx, facility: selected }); };
   useEffect(() => { let active = true; refreshLiveShipments(); const timer = window.setInterval(refreshLiveShipments, 15000); loadOnchainFacilities().then((values) => { if (!active) return; setFacilities(values); }).catch(() => { if (active) { setOnchainFacility(null); setFacilities([]); toast.error("Live on-chain facilities unavailable."); } }); return () => { active = false; window.clearInterval(timer); }; }, []);
