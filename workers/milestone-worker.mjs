@@ -52,11 +52,17 @@ async function releaseIfReady(event) {
 }
 
 async function processEvent(event, mappingByShipment) {
-  const [shipmentId, milestoneId, milestoneType, , , sourceTxHash] = event.args;
+  const args = event.args;
+  const shipmentId = args?.shipmentId ?? args?.[0];
+  const milestoneId = args?.milestoneId ?? args?.[1];
+  const milestoneType = args?.milestoneType ?? args?.[2];
+  const sourceTxHash = args?.sourceTxHash ?? args?.[5];
   const mapping = mappingByShipment.get(shipmentId.toLowerCase());
   const facilityId = mapping?.facilityId || (flow?.shipmentId?.toLowerCase() === shipmentId.toLowerCase() ? flow.facilityId : null);
-  const sourceEventTx = event.transactionHash;
-  const workerEvent = { sourceTxHash: sourceEventTx, sourceBlock: event.blockNumber, shipmentId, milestoneId, milestoneType: Number(milestoneType), facilityId };
+  const sourceEventTx = event.transactionHash ?? event.log?.transactionHash ?? event.hash;
+  if (!sourceEventTx) throw new Error(`Milestone event ${milestoneId} has no source transaction hash`);
+  const proofSourceTxHash = sourceTxHash || sourceEventTx;
+  const workerEvent = { sourceTxHash: sourceEventTx, sourceBlock: event.blockNumber ?? event.log?.blockNumber, shipmentId, milestoneId, milestoneType: Number(milestoneType), facilityId };
   await upsertWorkerEvent(workerEvent);
   if (!facilityId) {
     await markWorkerFailure(sourceEventTx, `No active shipment-facility mapping for ${shipmentId}`);
@@ -65,7 +71,7 @@ async function processEvent(event, mappingByShipment) {
   }
   if (state.processed[milestoneId]) return;
   console.log(`Detected MilestoneRecorded ${milestoneId} for facility ${facilityId}`);
-  const eventData = { shipmentId, milestoneId, milestoneType, sourceTxHash, sourceEventTx, facilityId };
+  const eventData = { shipmentId, milestoneId, milestoneType, sourceTxHash: proofSourceTxHash, sourceEventTx, facilityId };
   const current = await releaseIfReady(eventData);
   if (current === "released" || current === "already-released") return;
   await updateWorkerEvent(sourceEventTx, { facilityId, status: "PROOF_PENDING" });
