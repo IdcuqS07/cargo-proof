@@ -41,6 +41,15 @@ async function queryLogsInChunks(rpc, address, topics, fromBlock, toBlock) {
   return events;
 }
 
+async function resolveLogTransactionHash(log) {
+  if (log.transactionHash || log.hash || log.txHash) return log.transactionHash || log.hash || log.txHash;
+  if (log.blockHash && log.transactionIndex !== undefined) {
+    const tx = await provider.send("eth_getTransactionByBlockHashAndIndex", [log.blockHash, `0x${Number(log.transactionIndex).toString(16)}`]);
+    return tx?.hash;
+  }
+  return undefined;
+}
+
 async function alert(notification) {
   await createNotification(notification);
   await notifyOwner({ title: notification.title, content: notification.message });
@@ -117,11 +126,13 @@ async function run() {
   console.log(`Worker ${once ? "one-shot" : "continuous"} (${databaseEnabled() ? "database mappings" : "fallback mappings"}): scanning from ${fromBlock} to ${latest}`);
   const eventTopic = sourceRegistry.interface.getEvent("MilestoneRecorded").topicHash;
   const rawLogs = await queryLogsInChunks(provider, sourceRegistryAddress, [eventTopic], fromBlock, latest);
-  const events = rawLogs.map((log) => {
+  const events = await Promise.all(rawLogs.map(async (log) => {
     const parsed = sourceRegistry.interface.parseLog(log);
-    if (!parsed) throw new Error(`Unable to decode MilestoneRecorded log ${log.transactionHash}`);
-    return { args: parsed.args, transactionHash: log.transactionHash, blockNumber: log.blockNumber, address: log.address, topics: log.topics, index: log.index };
-  });
+    const transactionHash = await resolveLogTransactionHash(log);
+    if (!parsed) throw new Error(`Unable to decode MilestoneRecorded log ${transactionHash || "unknown"}`);
+    if (!transactionHash) throw new Error(`Unable to resolve transaction hash for block ${log.blockNumber}`);
+    return { args: parsed.args, transactionHash, blockNumber: log.blockNumber, address: log.address, topics: log.topics, index: log.index };
+  }));
   console.log(`[Worker] Found ${events.length} MilestoneRecorded event(s) in scan range`);
   for (const event of events) await safeProcessEvent(event, mappingByShipment);
   const retryCount = await countRetryQueue();
