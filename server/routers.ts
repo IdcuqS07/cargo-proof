@@ -54,8 +54,12 @@ export const appRouter = router({
     createNotification: protectedProcedure.input(z.object({ type: z.enum(["PROOF_FAILED", "RETRY_QUEUE", "RELEASED"]), severity: z.enum(["INFO", "WARNING", "ERROR"]), title: z.string().min(1).max(180), message: z.string().min(1), dedupeKey: z.string().min(1).max(180) })).mutation(({ input }) => createNotification(input)),
     retryWorker: protectedProcedure.mutation(async () => {
       const workerPath = path.join(process.cwd(), "workers", "milestone-worker.mjs");
-      const result = await runWorker(process.execPath, [workerPath, "--once"], { env: process.env, timeout: 180_000, maxBuffer: 2 * 1024 * 1024 });
-      return { ok: true, output: `${result.stdout || ""}${result.stderr || ""}`.trim() };
+      try {
+        const result = await runWorker(process.execPath, [workerPath, "--once"], { env: process.env, timeout: 180_000, maxBuffer: 2 * 1024 * 1024 });
+        return { ok: true, output: `${result.stdout || ""}${result.stderr || ""}`.trim() };
+      } catch (error) {
+        return { ok: false, output: error instanceof Error ? error.message : String(error) };
+      }
     }),
   }),
 });
