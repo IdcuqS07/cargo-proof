@@ -32,11 +32,11 @@ const adapter = new Contract(adapterAddress, artifact.abi, new Wallet(process.en
 const financing = new Contract(financingAddress, ["function releaseTranche(bytes32,bytes32,bytes32)"], new Wallet(process.env.WORKER_LENDER_PRIVATE_KEY || process.env.CREDITCOIN_DEPLOYER_PRIVATE_KEY, creditcoin));
 const saveState = () => fs.writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`);
 
-async function queryLogsInChunks(contract, filter, fromBlock, toBlock) {
+async function queryLogsInChunks(rpc, address, topics, fromBlock, toBlock) {
   const events = [];
   for (let start = fromBlock; start <= toBlock; start += 5000) {
     const end = Math.min(start + 4999, toBlock);
-    events.push(...await contract.queryFilter(filter, start, end));
+    events.push(...await rpc.getLogs({ address, topics, fromBlock: start, toBlock: end }));
   }
   return events;
 }
@@ -115,7 +115,13 @@ async function run() {
   const latest = await provider.getBlockNumber();
   const fromBlock = Number(process.env.WORKER_FROM_BLOCK || (flow?.blockHeight ?? latest));
   console.log(`Worker ${once ? "one-shot" : "continuous"} (${databaseEnabled() ? "database mappings" : "fallback mappings"}): scanning from ${fromBlock} to ${latest}`);
-  const events = await queryLogsInChunks(sourceRegistry, sourceRegistry.filters.MilestoneRecorded(), fromBlock, latest);
+  const eventTopic = sourceRegistry.interface.getEvent("MilestoneRecorded").topicHash;
+  const rawLogs = await queryLogsInChunks(provider, sourceRegistryAddress, [eventTopic], fromBlock, latest);
+  const events = rawLogs.map((log) => {
+    const parsed = sourceRegistry.interface.parseLog(log);
+    if (!parsed) throw new Error(`Unable to decode MilestoneRecorded log ${log.transactionHash}`);
+    return { args: parsed.args, transactionHash: log.transactionHash, blockNumber: log.blockNumber, address: log.address, topics: log.topics, index: log.index };
+  });
   console.log(`[Worker] Found ${events.length} MilestoneRecorded event(s) in scan range`);
   for (const event of events) await safeProcessEvent(event, mappingByShipment);
   const retryCount = await countRetryQueue();
