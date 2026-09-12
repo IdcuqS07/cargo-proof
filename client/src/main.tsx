@@ -5,7 +5,6 @@ import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
-import { startLogin } from "./const";
 import "./index.css";
 
 const queryClient = new QueryClient();
@@ -18,7 +17,9 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   if (!isUnauthorized) return;
 
-  startLogin();
+    // Standalone CargoProof uses wallet authentication; do not redirect to the
+    // optional Manus OAuth portal when it is not configured.
+    console.info("API session required; use Sign in with wallet.");
 };
 
 queryClient.getQueryCache().subscribe(event => {
