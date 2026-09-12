@@ -62,7 +62,13 @@ async function releaseIfReady(event) {
 }
 
 async function processEvent(event, mappingByShipment) {
-  const normalized = normalizeMilestoneEvent(event);
+  let eventWithTransaction = event;
+  if (!event.transactionHash && event.blockNumber !== undefined) {
+    const rawLogs = await provider.getLogs({ address: event.address || sourceRegistryAddress, fromBlock: event.blockNumber, toBlock: event.blockNumber, topics: event.topics });
+    const rawLog = rawLogs.find((log) => log.index === event.index) || rawLogs[0];
+    if (rawLog) eventWithTransaction = { ...event, transactionHash: rawLog.transactionHash, blockNumber: rawLog.blockNumber };
+  }
+  const normalized = normalizeMilestoneEvent(eventWithTransaction);
   const { shipmentId, milestoneId, milestoneType, proofSourceTxHash: sourceTxHash, sourceEventTx, sourceBlock } = normalized;
   const mapping = mappingByShipment.get(shipmentId.toLowerCase());
   const facilityId = mapping?.facilityId || (flow?.shipmentId?.toLowerCase() === shipmentId.toLowerCase() ? flow.facilityId : null);
