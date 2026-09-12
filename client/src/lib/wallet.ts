@@ -20,7 +20,7 @@ export type WalletSnapshot = { address: string; chainId: bigint; network: Wallet
 
 const FINANCING_ADDRESS = "0xe378E93D5eC4dDa719355c5274d85e97c3a0A500";
 const SOURCE_REGISTRY_ADDRESS = "0xE3e0b01141860541B7247f0E05b1Ea6cd60556BE";
-const FINANCING_ABI = ["function createFacility(bytes32 facilityId, bytes32 shipmentId, address borrower, uint256 principal, uint256[] trancheAmounts, uint256 deadline) returns (bytes32)"];
+const FINANCING_ABI = ["function createFacility(bytes32 facilityId, bytes32 shipmentId, address borrower, uint256 principal, uint256[] trancheAmounts, uint256 deadline) returns (bytes32)", "function pauseFacility(bytes32 facilityId)"];
 const SOURCE_REGISTRY_ABI = ["function registerShipment(bytes32 shipmentId,address borrower,address lender,bytes32 cargoHash)", "function recordMilestone(bytes32 shipmentId,bytes32 milestoneId,uint8 milestoneType,uint256 occurredAt,bytes32 metadataHash,bytes32 sourceTxHash)", "function operators(address) view returns (bool)", "function owner() view returns (address)", "function nextMilestoneType(bytes32) view returns (uint8)"];
 let activeProvider: InjectedEthereum | undefined;
 let walletConnectProvider: InjectedEthereum | undefined;
@@ -159,6 +159,15 @@ export async function createFacilityOnchain(input: { shipmentId: string; borrowe
   const transaction = await contract.createFacility(facilityId, shipmentId, input.borrower, input.principal, trancheAmounts, deadline);
   const receipt = await transaction.wait();
   return { facilityId, shipmentId, txHash: receipt.hash };
+}
+
+export async function pauseFacilityOnchain(facilityId: string) {
+  const provider = await requireNetwork("creditcoin");
+  const signer = await provider.getSigner();
+  const contract = new Contract(FINANCING_ADDRESS, FINANCING_ABI, signer);
+  const transaction = await contract.pauseFacility(facilityId);
+  const receipt = await transaction.wait();
+  return { txHash: receipt.hash };
 }
 
 export async function switchWalletNetwork(network: WalletNetwork) {

@@ -1,7 +1,7 @@
 import { Fragment, FormEvent, useEffect, useMemo, useState } from "react";
 import { Contract, JsonRpcProvider, keccak256, toUtf8Bytes } from "ethers";
 import { trpc } from "@/lib/trpc";
-import { connectWallet, connectWalletConnect, createFacilityOnchain, disconnectWallet, readWalletSnapshot, registerShipmentOnchain, recordMilestoneOnchain, shortAddress, signWalletMessage, switchWalletNetwork, type WalletNetwork, type WalletSnapshot } from "@/lib/wallet";
+import { connectWallet, connectWalletConnect, createFacilityOnchain, disconnectWallet, pauseFacilityOnchain, readWalletSnapshot, registerShipmentOnchain, recordMilestoneOnchain, shortAddress, signWalletMessage, switchWalletNetwork, type WalletNetwork, type WalletSnapshot } from "@/lib/wallet";
 import { toast } from "sonner";
 import {
   Activity,
@@ -50,14 +50,19 @@ const SEPOLIA_RPC = "https://ethereum-sepolia-rpc.publicnode.com";
 const FINANCING_ADDRESS = "0xe378E93D5eC4dDa719355c5274d85e97c3a0A500";
 const SOURCE_REGISTRY_ADDRESS = "0xE3e0b01141860541B7247f0E05b1Ea6cd60556BE";
 const SOURCE_REGISTRY_READ_ABI = ["event ShipmentRegistered(bytes32 indexed shipmentId,address indexed borrower,address indexed lender,bytes32 cargoHash)", "event MilestoneRecorded(bytes32 indexed shipmentId,bytes32 indexed milestoneId,uint8 milestoneType,uint256 occurredAt,bytes32 metadataHash,bytes32 sourceTxHash)"];
-const REAL_FACILITY_ID = "0xffca4087ad7d4836327b41997eb7b80d6c72829f871544065c5133ad43caa03b";
-const FINANCING_READ_ABI = ["function getFacility(bytes32) view returns (tuple(bytes32 shipmentId,address lender,address borrower,uint256 principal,uint256 releasedAmount,uint8 trancheCount,uint8 nextMilestone,uint256 deadline,uint8 status,bool exists))", "event TrancheReleased(bytes32 indexed facilityId,uint8 indexed trancheIndex,uint256 amount,bytes32 milestoneId,bytes32 proofHash,bytes32 payoutTxHash)"];
+const FINANCING_READ_ABI = ["function getFacility(bytes32) view returns (tuple(bytes32 shipmentId,address lender,address borrower,uint256 principal,uint256 releasedAmount,uint8 trancheCount,uint8 nextMilestone,uint256 deadline,uint8 status,bool exists))", "event FacilityCreated(bytes32 indexed facilityId,bytes32 indexed shipmentId,address indexed lender,address borrower,uint256 principal,uint8 trancheCount,uint256 deadline)", "event TrancheReleased(bytes32 indexed facilityId,uint8 indexed trancheIndex,uint256 amount,bytes32 milestoneId,bytes32 proofHash,bytes32 payoutTxHash)"];
 
-async function loadOnchainFacility(): Promise<OnchainFacility> {
+async function loadOnchainFacilities(): Promise<Facility[]> {
   const provider = new JsonRpcProvider(CREDITCOIN_RPC);
   const contract = new Contract(FINANCING_ADDRESS, FINANCING_READ_ABI, provider);
-  const value = await contract.getFacility(REAL_FACILITY_ID);
-  return { facilityId: REAL_FACILITY_ID, shipmentId: value.shipmentId, borrower: value.borrower, principal: value.principal.toString(), released: value.releasedAmount.toString(), nextMilestone: Number(value.nextMilestone), status: Number(value.status), trancheCount: Number(value.trancheCount), updatedAt: new Date().toISOString() };
+  const latest = await provider.getBlockNumber();
+  const logs = await contract.queryFilter(contract.filters.FacilityCreated(), Math.max(0, latest - 45000), latest);
+  return Promise.all(logs.map(async (log) => {
+    const args = (log as any).args;
+    const value = await contract.getFacility(args.facilityId);
+    const status = ["ACTIVE", "PAUSED", "DEFAULTED", "SETTLED", "CANCELLED"][Number(value.status)] as FacilityStatus;
+    return { id: args.facilityId, shipment: value.shipmentId, borrower: value.borrower, amount: Number(value.principal), released: Number(value.releasedAmount), status, next: `Milestone ${Number(value.nextMilestone)}`, lane: "Creditcoin testnet", source: log.transactionHash };
+  }));
 }
 
 async function loadLiveShipments(): Promise<LiveShipment[]> {
@@ -89,36 +94,16 @@ type Facility = {
   source: string;
 };
 
-const initialFacilities: Facility[] = [
-  { id: "CF-001", shipment: "CP-2026-001", borrower: "Nusantara Foods", amount: 10000, released: 6250, status: "ACTIVE", next: "Hub arrival", lane: "Jakarta → Rotterdam", source: "0x4d91…8a20" },
-  { id: "CF-002", shipment: "CP-2026-004", borrower: "Karya Coffee Co.", amount: 18500, released: 12500, status: "ACTIVE", next: "Delivered", lane: "Bandung → Hamburg", source: "0x7bc2…0f13" },
-  { id: "CF-003", shipment: "CP-2026-009", borrower: "Blue Harbor Textiles", amount: 14000, released: 0, status: "PAUSED", next: "Cargo departed", lane: "Surabaya → Busan", source: "0x19a0…ca77" },
-];
+const initialFacilities: Facility[] = [];
 
 const navItems: { key: ViewKey; label: string; icon: LucideIcon; badge?: string }[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
-  { key: "facilities", label: "Facilities", icon: CreditCard, badge: "03" },
+  { key: "facilities", label: "Facilities", icon: CreditCard },
   { key: "shipments", label: "Shipments", icon: Ship },
   { key: "proofs", label: "Proof operations", icon: FileCheck2, badge: "02" },
 ];
 
-const trancheHistory: Record<string, { label: string; amount: number; status: "RELEASED" | "PENDING" | "BLOCKED"; milestone: string; tx: string; time: string }[]> = {
-  "CF-001": [
-    { label: "Tranche 01", amount: 3750, status: "RELEASED", milestone: "Cargo departed", tx: "0x8ca1…92fd", time: "04 Sep · 09:42" },
-    { label: "Tranche 02", amount: 2500, status: "RELEASED", milestone: "Hub arrival", tx: "0x4f12…71ab", time: "04 Sep · 10:06" },
-    { label: "Tranche 03", amount: 3750, status: "PENDING", milestone: "Delivered", tx: "Awaiting proof", time: "Next milestone" },
-  ],
-  "CF-002": [
-    { label: "Tranche 01", amount: 6250, status: "RELEASED", milestone: "Cargo departed", tx: "0x113a…99be", time: "31 Aug · 14:12" },
-    { label: "Tranche 02", amount: 6250, status: "RELEASED", milestone: "Hub arrival", tx: "0x77cd…a012", time: "02 Sep · 08:31" },
-    { label: "Tranche 03", amount: 6000, status: "PENDING", milestone: "Delivered", tx: "Awaiting proof", time: "Next milestone" },
-  ],
-  "CF-003": [
-    { label: "Tranche 01", amount: 4667, status: "BLOCKED", milestone: "Cargo departed", tx: "Proof not attested", time: "Paused by lender" },
-    { label: "Tranche 02", amount: 4667, status: "BLOCKED", milestone: "Hub arrival", tx: "Facility paused", time: "Locked" },
-    { label: "Tranche 03", amount: 4666, status: "BLOCKED", milestone: "Delivered", tx: "Facility paused", time: "Locked" },
-  ],
-};
+const trancheHistory: Record<string, { label: string; amount: number; status: "RELEASED" | "PENDING" | "BLOCKED"; milestone: string; tx: string; time: string }[]> = {};
 
 const statusStyles: Record<FacilityStatus, string> = {
   ACTIVE: "status-active",
@@ -178,13 +163,6 @@ function TrancheHistory({ facility, onTransaction, liveItems }: { facility: Faci
   return <div className="tranche-history"><div className="history-heading"><span className="eyebrow">Tranche history</span><span className="history-total">{items.filter((item) => item.status === "RELEASED").length} of {items.length} released</span></div><div className="tranche-list">{items.map((item) => <div className="tranche-item" key={item.label}><div className={`tranche-state ${item.status.toLowerCase()}`}>{item.status === "RELEASED" ? <Check size={11} /> : <Clock3 size={11} />}</div><div className="tranche-main"><strong>{item.label} <span>· {item.milestone}</span></strong><small>{item.time}</small></div><div className="tranche-amount"><strong>{money(item.amount)}</strong><button onClick={() => onTransaction(item.label, item.tx)}>{item.tx} <ArrowUpRight size={10} /></button></div></div>)}</div></div>;
 }
 
-function pipelineTag(index: number, demoStep: number, failed: boolean) {
-  if (failed && index === 2) return "Blocked";
-  if (index < demoStep) return ["3 milestones", "Verified", "Validated", "Released"][index];
-  if (index === demoStep) return index === 3 ? "Release ready" : "Processing";
-  return index === 3 ? "Next release" : "Pending";
-}
-
 function MetricCard({ label, value, detail, icon: Icon, tone }: { label: string; value: string; detail: string; icon: LucideIcon; tone: "lime" | "violet" | "amber" | "blue" }) {
   return <div className="metric-card surface animate-rise">
     <div className={`metric-icon metric-${tone}`}><Icon size={17} strokeWidth={1.8} /></div>
@@ -211,7 +189,7 @@ function ActivityFeed({ notifications = [], workerEvents = [], onRetryWorker, re
   </div>;
 }
 
-function FacilityTable({ facilities, onPause, onInspect }: { facilities: Facility[]; onPause: (id: string) => void; onInspect: (facility: Facility) => void }) {
+function FacilityTable({ facilities, onPause, onInspect }: { facilities: Facility[]; onPause: (id: string) => void | Promise<void>; onInspect: (facility: Facility) => void }) {
   const [query, setQuery] = useState("");
   const filtered = facilities.filter((facility) => `${facility.id} ${facility.shipment} ${facility.borrower}`.toLowerCase().includes(query.toLowerCase()));
   return <div className="table-card surface">
@@ -264,7 +242,7 @@ function Overview({ facilities, wallet, profileName, onPause, onInspect, onCreat
   </>;
 }
 
-function FacilitiesView({ facilities, onPause, onInspect, onCreate }: { facilities: Facility[]; onPause: (id: string) => void; onInspect: (facility: Facility) => void; onCreate: () => void }) {
+function FacilitiesView({ facilities, onPause, onInspect, onCreate }: { facilities: Facility[]; onPause: (id: string) => void | Promise<void>; onInspect: (facility: Facility) => void; onCreate: () => void }) {
   return <><div className="page-heading"><div><p className="kicker">Portfolio / Facilities</p><h1>Financing facilities</h1><p>Every facility is governed by a milestone-based release schedule.</p></div><div className="heading-actions"><button className="btn-primary" onClick={onCreate}><Plus size={14} /> Create facility</button></div></div><div className="dashboard-grid"><FacilityTable facilities={facilities} onPause={onPause} onInspect={onInspect} /><div className="view-card surface"><div className="section-title">Facility rules</div><p>The financing contract prevents payout when a proof is invalid, out of order, replayed, or the facility is paused.</p><div className="proof-list"><div className="proof-row"><div className="proof-number">01</div><div><strong>Ordered milestones</strong><small>Departed → hub → delivered</small></div><Check size={14} color="#c7f36b" /></div><div className="proof-row"><div className="proof-number">02</div><div><strong>Replay protection</strong><small>One source event, one payout</small></div><Check size={14} color="#c7f36b" /></div><div className="proof-row"><div className="proof-number">03</div><div><strong>Principal invariant</strong><small>Total payout ≤ principal</small></div><Check size={14} color="#c7f36b" /></div></div></div></div></>;
 }
 
@@ -289,8 +267,6 @@ export default function Home() {
   const [modalOpen, setModalOpen] = useState(false);
   const [selected, setSelected] = useState<Facility | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [demoStep, setDemoStep] = useState(2);
-  const [demoFailed, setDemoFailed] = useState(false);
   const [transaction, setTransaction] = useState<{ label: string; tx: string; facility: Facility } | null>(null);
   const [onchainFacility, setOnchainFacility] = useState<OnchainFacility | null>(null);
   const [wallet, setWallet] = useState<WalletSnapshot | null>(null);
@@ -307,6 +283,7 @@ export default function Home() {
   const [refreshingProofs, setRefreshingProofs] = useState(false);
   const [retryingWorker, setRetryingWorker] = useState(false);
   const retryWorkerMutation = trpc.cargoProof.retryWorker.useMutation();
+  const upsertMappingMutation = trpc.cargoProof.upsertMapping.useMutation();
   const onRetryWorker = async () => {
     setRetryingWorker(true);
     try {
@@ -340,22 +317,20 @@ export default function Home() {
   const refreshShipmentsView = async () => {
     await refreshLiveShipments();
     try {
-      const facility = await loadOnchainFacility();
-      setOnchainFacility(facility);
+      const facilities = await loadOnchainFacilities();
+      setFacilities(facilities);
+      setOnchainFacility(null);
     } catch (error) {
       toast.error(error instanceof Error ? `Facility refresh failed: ${error.message}` : "Facility refresh failed");
     }
   };
   const openCreate = () => setModalOpen(true);
-  const pauseFacility = (id: string) => { setFacilities((current) => current.map((facility) => facility.id === id ? { ...facility, status: "PAUSED" } : facility)); toast.success(`${id} paused — future tranche releases blocked`); };
+  const pauseFacility = async (id: string) => { try { const result = await pauseFacilityOnchain(id); toast.success(`Facility paused: ${result.txHash.slice(0, 10)}…`); const facilities = await loadOnchainFacilities(); setFacilities(facilities); } catch (error) { toast.error(error instanceof Error ? error.message : "Pause transaction failed"); } };
   const inspect = (facility: Facility) => { setSelected(facility); void loadTranches(facility.id); toast(`Inspecting ${facility.id}`); };
   const loadTranches = async (facilityId: string) => { const provider = new JsonRpcProvider(CREDITCOIN_RPC); const contract = new Contract(FINANCING_ADDRESS, FINANCING_READ_ABI, provider); const latest = await provider.getBlockNumber(); const logs = await contract.queryFilter(contract.filters.TrancheReleased(facilityId), Math.max(0, latest - 45000), latest); const items = logs.map((log, index) => { const args = (log as any).args; return { label: `Tranche ${String(Number(args.trancheIndex) + 1).padStart(2, "0")}`, amount: Number(args.amount), status: "RELEASED" as const, milestone: args.milestoneId.slice(0, 12) + "…", tx: log.transactionHash, time: new Date().toLocaleString() }; }); setTrancheItems((current) => ({ ...current, [facilityId]: items })); };
-  const handleCreate = (facility: Facility) => { setFacilities((current) => [facility, ...current]); setModalOpen(false); setView("facilities"); toast.success(`${facility.id} created on Creditcoin testnet`); };
-  const advanceDemo = () => { setDemoFailed(false); setDemoStep((current) => { const next = Math.min(current + 1, 4); toast.success(next === 4 ? "Proof verified — tranche released" : `Demo advanced to step ${next + 1} of 4`); return next; }); };
-  const failDemo = () => { setDemoFailed(true); toast.error("Proof rejected — payout blocked by ASC"); };
-  const resetDemo = () => { setDemoFailed(false); setDemoStep(0); toast("Demo reset to source event"); };
-  const inspectTransaction = (label: string, tx: string) => setTransaction({ label, tx, facility: selected ?? initialFacilities[0] });
-  useEffect(() => { let active = true; refreshLiveShipments(); const timer = window.setInterval(refreshLiveShipments, 15000); loadOnchainFacility().then((value) => { if (!active) return; setOnchainFacility(value); setFacilities([{ id: value.facilityId, shipment: value.shipmentId, borrower: value.borrower, amount: Number(value.principal), released: Number(value.released), status: value.status === 0 ? "ACTIVE" : "PAUSED", next: `Milestone ${value.nextMilestone}`, lane: "Creditcoin testnet", source: value.facilityId }]); }).catch(() => { if (active) { setOnchainFacility(null); setFacilities([]); toast.error("Live on-chain data unavailable. Connect to the configured RPC to load facilities."); } }); return () => { active = false; window.clearInterval(timer); }; }, []);
+  const handleCreate = async (facility: Facility) => { try { await upsertMappingMutation.mutateAsync({ shipmentId: keccak256(toUtf8Bytes(facility.shipment)), facilityId: facility.id, sourceRegistry: SOURCE_REGISTRY_ADDRESS, chainKey: 1 }); } catch (error) { toast.error(error instanceof Error ? `Facility created, but worker mapping failed: ${error.message}` : "Facility mapping failed"); } const facilities = await loadOnchainFacilities(); setFacilities(facilities); setModalOpen(false); setView("facilities"); toast.success(`${facility.id} created on Creditcoin testnet`); };
+  const inspectTransaction = (label: string, tx: string) => { if (selected) setTransaction({ label, tx, facility: selected }); };
+  useEffect(() => { let active = true; refreshLiveShipments(); const timer = window.setInterval(refreshLiveShipments, 15000); loadOnchainFacilities().then((values) => { if (!active) return; setFacilities(values); }).catch(() => { if (active) { setOnchainFacility(null); setFacilities([]); toast.error("Live on-chain facilities unavailable."); } }); return () => { active = false; window.clearInterval(timer); }; }, []);
   useEffect(() => {
     const injected = window.ethereum;
     if (!injected) return;
@@ -404,8 +379,8 @@ export default function Home() {
   const networkLabel = wallet?.network === "sepolia" ? "Ethereum Sepolia" : wallet?.network === "creditcoin" ? "Creditcoin testnet" : "Wallet not connected";
   const networkDetail = wallet?.network === "creditcoin" ? "Attestcoin adapter connected" : wallet?.network === "sepolia" ? "Source registry connected" : "Connect wallet to continue";
   return <div className="app-shell">
-    <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}><div className="brand"><div className="brand-mark"><span /><span /><span /></div><div><strong>Cargo<span>Proof</span></strong><small>Conditional credit rail</small></div></div><div className="network-card"><div className="network-label"><span className="network-dot" />Network status</div><strong><span className="network-dot" />{networkLabel}</strong><em>{networkDetail}</em></div><div className="nav-label">Workspace</div><nav className="nav-list" aria-label="Main navigation">{navItems.map(({ key, label, icon: Icon, badge }) => <button key={key} className={`nav-item ${view === key ? "active" : ""}`} onClick={() => { setView(key); setSidebarOpen(false); }}><Icon size={15} strokeWidth={1.8} /><span>{label}</span>{badge && <span className="nav-badge">{badge}</span>}</button>)}</nav><div className="sidebar-bottom"><div className="help-card"><p>Need to understand a proof state?</p><button onClick={() => setView("proofs")}>Open proof guide <ArrowRight size={11} /></button></div><div className="profile"><div className="avatar">{wallet ? wallet.address.slice(2, 4).toUpperCase() : "—"}</div><div><strong>{profileName.trim() || (wallet ? "Connected wallet" : "Wallet not connected")}</strong><small>{wallet ? `${wallet.network ?? "Unsupported network"} · ${shortAddress(wallet.address)}` : "Connect wallet to continue"}</small></div><button className="row-action" onClick={() => setProfileOpen(true)} aria-label="Edit profile"><Settings2 size={14} /></button></div></div></aside>
-    <main className="main-content"><header className="topbar"><div className="topbar-left"><button className="mobile-menu" onClick={() => setSidebarOpen((open) => !open)} aria-label="Open navigation"><Menu size={16} /></button><div className="crumb"><span>Workspace</span><ArrowRight size={11} /><b>{currentLabel}</b></div><div className="topbar-divider" /><div className="sync-state"><span />Worker sync <strong>Healthy</strong></div></div><div className="topbar-right"><button className="top-icon" onClick={() => toast("No new alerts")} aria-label="Notifications"><Bell size={14} /></button><div className="wallet-wrap">
+            <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}><div className="brand"><div className="brand-mark"><span /><span /><span /></div><div><strong>Cargo<span>Proof</span></strong><small>Conditional credit rail</small></div></div><div className="network-card"><div className="network-label"><span className="network-dot" />Network status</div><strong><span className="network-dot" />{networkLabel}</strong><em>{networkDetail}</em></div><div className="nav-label">Workspace</div><nav className="nav-list" aria-label="Main navigation">{navItems.map(({ key, label, icon: Icon, badge }) => <button key={key} className={`nav-item ${view === key ? "active" : ""}`} onClick={() => { setView(key); setSidebarOpen(false); }}><Icon size={15} strokeWidth={1.8} /><span>{label}</span>{badge && <span className="nav-badge">{badge}</span>}</button>)}</nav><div className="sidebar-bottom"><div className="help-card"><p>Need to understand a proof state?</p><button onClick={() => setView("proofs")}>Open proof guide <ArrowRight size={11} /></button></div><div className="profile"><div className="avatar">{wallet ? wallet.address.slice(2, 4).toUpperCase() : "—"}</div><div><strong>{profileName.trim() || (wallet ? "Connected wallet" : "Wallet not connected")}</strong><small>{wallet ? `${wallet.network ?? "Unsupported network"} · ${shortAddress(wallet.address)}` : "Connect wallet to continue"}</small></div><button className="row-action" onClick={() => setProfileOpen(true)} aria-label="Edit profile"><Settings2 size={14} /></button></div></div></aside>
+    <main className="main-content"><header className="topbar"><div className="topbar-left"><button className="mobile-menu" onClick={() => setSidebarOpen((open) => !open)} aria-label="Open navigation"><Menu size={16} /></button><div className="crumb"><span>Workspace</span><ArrowRight size={11} /><b>{currentLabel}</b></div><div className="topbar-divider" /><div className="sync-state"><span />Worker sync <strong>{workerEvents.length ? "Indexed" : "Waiting"}</strong></div></div><div className="topbar-right"><button className="top-icon" onClick={() => toast(workerNotifications.length ? `${workerNotifications.length} worker alerts` : "No new alerts")} aria-label="Notifications"><Bell size={14} /></button><div className="wallet-wrap">
             <button className="wallet wallet-button" onClick={() => wallet ? setWalletMenuOpen((open) => !open) : handleConnectWallet()} disabled={walletBusy} aria-label={wallet ? "Open wallet menu" : "Connect wallet"}><span className="wallet-avatar"><WalletCards size={12} /></span><span>{wallet ? shortAddress(wallet.address) : walletBusy ? "Connecting…" : "Connect wallet"}</span><ChevronDown size={11} /></button><button className="wallet-mobile-button" onClick={handleConnectMobileWallet} disabled={walletBusy}>Mobile</button>
             {walletMenuOpen && wallet && <div className="wallet-menu"><strong>{shortAddress(wallet.address)}</strong><small>{wallet.network ?? `Unsupported chain · ${wallet.chainId}`}</small><small>{Number(wallet.balance).toFixed(4)} native balance</small>{!wallet.network && <><button onClick={() => handleSwitchNetwork("sepolia")}>Switch to Sepolia</button><button onClick={() => handleSwitchNetwork("creditcoin")}>Switch to Creditcoin</button></>}<button onClick={handleSignWallet}>Sign in with wallet</button><button className="wallet-disconnect" onClick={() => { void disconnectWallet(); setWallet(null); setWalletMenuOpen(false); toast("Wallet disconnected from this dashboard"); }}>Disconnect</button></div>}
           </div></div></header><div className="content-wrap">{view === "overview" && <Overview facilities={facilities} wallet={wallet} profileName={profileName} onPause={pauseFacility} onInspect={inspect} onCreate={openCreate} onchainFacility={onchainFacility} notifications={workerNotifications} workerEvents={workerEvents} onRetryWorker={onRetryWorker} retryingWorker={retryingWorker} />}{view === "facilities" && <FacilitiesView facilities={facilities} onPause={pauseFacility} onInspect={inspect} onCreate={openCreate} />}{view === "shipments" && <ShipmentsView wallet={wallet} onRefresh={() => { void refreshShipmentsView(); }} refreshing={refreshingShipments} shipments={liveShipments} />}{view === "proofs" && <ProofsView events={workerEvents} onRefresh={() => { void refreshProofStatus(); }} refreshing={refreshingProofs} />}</div></main>
