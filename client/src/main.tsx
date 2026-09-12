@@ -37,7 +37,10 @@ queryClient.getMutationCache().subscribe(event => {
   }
 });
 
-const apiBaseUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "");
+// The frontend can be hosted separately from the Railway API. Keep a production
+// fallback so a missing VITE_API_URL cannot turn API calls into HTML/405 errors.
+const configuredApiBaseUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "");
+const apiBaseUrl = configuredApiBaseUrl || (import.meta.env.PROD ? "https://cargo-proof-production.up.railway.app" : "");
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
