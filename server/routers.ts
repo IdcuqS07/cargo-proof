@@ -54,10 +54,10 @@ export const appRouter = router({
     }),
   }),
   cargoProof: router({
-    mappings: protectedProcedure.query(() => listShipmentFacilityMappings()),
+    mappings: publicProcedure.query(() => listShipmentFacilityMappings()),
     upsertMapping: protectedProcedure.input(mappingInput).mutation(({ input }) => upsertShipmentFacilityMapping(input)),
-    workerEvents: protectedProcedure.input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).optional()).query(({ input }) => listWorkerEvents(input?.limit ?? 50)),
-    notifications: protectedProcedure.input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).optional()).query(({ input }) => listNotifications(input?.limit ?? 50)),
+    workerEvents: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).optional()).query(({ input }) => listWorkerEvents(input?.limit ?? 50)),
+    notifications: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).optional()).query(({ input }) => listNotifications(input?.limit ?? 50)),
     markNotificationRead: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input }) => markNotificationRead(input.id)),
     createNotification: protectedProcedure.input(z.object({ type: z.enum(["PROOF_FAILED", "RETRY_QUEUE", "RELEASED"]), severity: z.enum(["INFO", "WARNING", "ERROR"]), title: z.string().min(1).max(180), message: z.string().min(1), dedupeKey: z.string().min(1).max(180) })).mutation(({ input }) => createNotification(input)),
     retryWorker: protectedProcedure.mutation(async () => {
