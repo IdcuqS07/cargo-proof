@@ -5,6 +5,7 @@ import { Contract, JsonRpcProvider, Wallet, keccak256, toUtf8Bytes } from "ether
 import { proofProvider } from "@gluwa/usc-sdk";
 import { closeDatabase, createNotification, countRetryQueue, databaseEnabled, listMappings, markWorkerFailure, updateWorkerEvent, upsertWorkerEvent } from "./db-store.mjs";
 import { notifyOwner } from "./notify.mjs";
+import { normalizeMilestoneEvent } from "./event-normalizer.mjs";
 
 const root = process.cwd();
 const once = process.argv.includes("--once");
@@ -52,17 +53,12 @@ async function releaseIfReady(event) {
 }
 
 async function processEvent(event, mappingByShipment) {
-  const args = event.args;
-  const shipmentId = args?.shipmentId ?? args?.[0];
-  const milestoneId = args?.milestoneId ?? args?.[1];
-  const milestoneType = args?.milestoneType ?? args?.[2];
-  const sourceTxHash = args?.sourceTxHash ?? args?.[5];
+  const normalized = normalizeMilestoneEvent(event);
+  const { shipmentId, milestoneId, milestoneType, proofSourceTxHash: sourceTxHash, sourceEventTx, sourceBlock } = normalized;
   const mapping = mappingByShipment.get(shipmentId.toLowerCase());
   const facilityId = mapping?.facilityId || (flow?.shipmentId?.toLowerCase() === shipmentId.toLowerCase() ? flow.facilityId : null);
-  const sourceEventTx = event.transactionHash ?? event.log?.transactionHash ?? event.hash;
-  if (!sourceEventTx) throw new Error(`Milestone event ${milestoneId} has no source transaction hash`);
-  const proofSourceTxHash = sourceTxHash || sourceEventTx;
-  const workerEvent = { sourceTxHash: sourceEventTx, sourceBlock: event.blockNumber ?? event.log?.blockNumber, shipmentId, milestoneId, milestoneType: Number(milestoneType), facilityId };
+  console.log(`[Worker] Event ${sourceEventTx} shipment=${shipmentId} facility=${facilityId || "NONE"}`);
+  const workerEvent = { sourceTxHash: sourceEventTx, sourceBlock, shipmentId, milestoneId, milestoneType, facilityId };
   await upsertWorkerEvent(workerEvent);
   if (!facilityId) {
     await markWorkerFailure(sourceEventTx, `No active shipment-facility mapping for ${shipmentId}`);
@@ -71,7 +67,7 @@ async function processEvent(event, mappingByShipment) {
   }
   if (state.processed[milestoneId]) return;
   console.log(`Detected MilestoneRecorded ${milestoneId} for facility ${facilityId}`);
-  const eventData = { shipmentId, milestoneId, milestoneType, sourceTxHash: proofSourceTxHash, sourceEventTx, facilityId };
+  const eventData = { shipmentId, milestoneId, milestoneType, sourceTxHash, sourceEventTx, facilityId };
   const current = await releaseIfReady(eventData);
   if (current === "released" || current === "already-released") return;
   await updateWorkerEvent(sourceEventTx, { facilityId, status: "PROOF_PENDING" });
@@ -105,6 +101,7 @@ async function run() {
   const fromBlock = Number(process.env.WORKER_FROM_BLOCK || (flow?.blockHeight ?? latest));
   console.log(`Worker ${once ? "one-shot" : "continuous"} (${databaseEnabled() ? "database mappings" : "fallback mappings"}): scanning from ${fromBlock} to ${latest}`);
   const events = await sourceRegistry.queryFilter(sourceRegistry.filters.MilestoneRecorded(), fromBlock, latest);
+  console.log(`[Worker] Found ${events.length} MilestoneRecorded event(s) in scan range`);
   for (const event of events) await safeProcessEvent(event, mappingByShipment);
   const retryCount = await countRetryQueue();
   if (retryCount >= 3) await alert({ type: "RETRY_QUEUE", severity: "WARNING", title: "CargoProof retry queue is growing", message: `${retryCount} worker events are waiting for retry or resolution.`, dedupeKey: `retry-queue:${Math.floor(retryCount / 3)}` });
