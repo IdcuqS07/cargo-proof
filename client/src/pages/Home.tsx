@@ -337,7 +337,19 @@ export default function Home() {
   const pauseFacility = async (id: string) => { try { const result = await pauseFacilityOnchain(id); toast.success(`Facility paused: ${result.txHash.slice(0, 10)}…`); const facilities = await loadOnchainFacilities(); setFacilities(facilities); } catch (error) { toast.error(error instanceof Error ? error.message : "Pause transaction failed"); } };
   const inspect = (facility: Facility) => { setSelected(facility); void loadTranches(facility.id); toast(`Inspecting ${facility.id}`); };
   const loadTranches = async (facilityId: string) => { const provider = new JsonRpcProvider(CREDITCOIN_RPC); const contract = new Contract(FINANCING_ADDRESS, FINANCING_READ_ABI, provider); const latest = await provider.getBlockNumber(); const logs = await queryLogsInChunks(contract, contract.filters.TrancheReleased(facilityId), Math.max(0, latest - 45000), latest); const items = logs.map((log, index) => { const args = (log as any).args; return { label: `Tranche ${String(Number(args.trancheIndex) + 1).padStart(2, "0")}`, amount: Number(args.amount), status: "RELEASED" as const, milestone: args.milestoneId.slice(0, 12) + "…", tx: log.transactionHash, time: new Date().toLocaleString() }; }); setTrancheItems((current) => ({ ...current, [facilityId]: items })); };
-  const handleCreate = async (facility: Facility) => { try { await upsertMappingMutation.mutateAsync({ shipmentId: keccak256(toUtf8Bytes(facility.shipment)), facilityId: facility.id, sourceRegistry: SOURCE_REGISTRY_ADDRESS, chainKey: 1 }); } catch (error) { toast.error(error instanceof Error ? `Facility created, but worker mapping failed: ${error.message}` : "Facility mapping failed"); } const facilities = await loadOnchainFacilities(); setFacilities(facilities); setModalOpen(false); setView("facilities"); toast.success(`${facility.id} created on Creditcoin testnet`); };
+  const handleCreate = async (facility: Facility) => {
+    try {
+      await upsertMappingMutation.mutateAsync({ shipmentId: keccak256(toUtf8Bytes(facility.shipment)), facilityId: facility.id, sourceRegistry: SOURCE_REGISTRY_ADDRESS, chainKey: 1 });
+    } catch (error) {
+      toast.error(error instanceof Error ? `Facility created, but worker mapping failed: ${error.message}` : "Facility mapping failed");
+      return;
+    }
+    const facilities = await loadOnchainFacilities();
+    setFacilities(facilities);
+    setModalOpen(false);
+    setView("facilities");
+    toast.success(`${facility.id} created on Creditcoin testnet and worker mapping saved`);
+  };
   const inspectTransaction = (label: string, tx: string) => { if (selected) setTransaction({ label, tx, facility: selected }); };
   useEffect(() => { let active = true; refreshLiveShipments(); const timer = window.setInterval(refreshLiveShipments, 15000); loadOnchainFacilities().then((values) => { if (!active) return; setFacilities(values); }).catch(() => { if (active) { setOnchainFacility(null); setFacilities([]); toast.error("Live on-chain facilities unavailable."); } }); return () => { active = false; window.clearInterval(timer); }; }, []);
   useEffect(() => {
