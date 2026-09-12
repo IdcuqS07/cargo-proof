@@ -12,8 +12,9 @@
     "contracts:deploy:dry-run": "node scripts/deploy-contracts.mjs",
     "contracts:deploy": "node scripts/deploy-contracts.mjs --broadcast",
     "attestcoin:deploy": "node scripts/deploy-adapter.mjs",
-    "worker:once": "node workers/milestone-worker.mjs --once",
-    "worker:start": "node workers/milestone-worker.mjs",
+    "db:migrate": "drizzle-kit migrate",
+    "worker:once": "pnpm db:migrate && node workers/milestone-worker.mjs --once",
+    "worker:start": "pnpm db:migrate && node workers/milestone-worker.mjs",
     "format": "prettier --write .",
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
