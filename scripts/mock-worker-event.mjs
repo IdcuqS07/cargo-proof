@@ -14,6 +14,7 @@ for (const event of [queryEvent, listenerEvent]) {
   assert.equal(normalized.shipmentId, shipment);
   assert.equal(normalized.milestoneId, milestone);
   assert.equal(normalized.milestoneType, 1);
+  assert.equal(normalized.sourceEventTx, tx);
   assert.equal(normalized.sourceTxHash, tx);
   assert.equal(normalized.proofSourceTxHash, sourceTx);
   assert.equal(normalized.sourceBlock, 42);

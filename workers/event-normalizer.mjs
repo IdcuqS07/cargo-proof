@@ -8,5 +8,5 @@ export function normalizeMilestoneEvent(event) {
   const sourceBlock = event?.blockNumber ?? event?.block_number ?? event?.log?.blockNumber ?? event?.log?.block_number;
   if (!shipmentId || !milestoneId || milestoneType === undefined) throw new Error("Milestone event arguments are incomplete");
   if (!sourceEventTx) throw new Error(`Milestone event ${milestoneId} has no source transaction hash`);
-  return { shipmentId: String(shipmentId), milestoneId: String(milestoneId), milestoneType: Number(milestoneType), sourceTxHash: sourceEventTx, proofSourceTxHash: sourceTxHash || sourceEventTx, sourceBlock };
+  return { shipmentId: String(shipmentId), milestoneId: String(milestoneId), milestoneType: Number(milestoneType), sourceEventTx, sourceTxHash: sourceEventTx, proofSourceTxHash: sourceTxHash || sourceEventTx, sourceBlock };
 }
