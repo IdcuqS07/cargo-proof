@@ -126,9 +126,18 @@ async function safeProcessEvent(event, mappingByShipment) {
   }
 }
 
+async function refreshMappings(mappingByShipment) {
+  if (!databaseEnabled()) return;
+  const mappings = await listMappings();
+  mappingByShipment.clear();
+  for (const mapping of mappings) mappingByShipment.set(mapping.shipmentId.toLowerCase(), mapping);
+  console.log(`[Worker] Loaded ${mappingByShipment.size} active shipment-facility mapping(s)`);
+}
+
 async function run() {
   const mappings = databaseEnabled() ? await listMappings() : [];
   const mappingByShipment = new Map(mappings.map(item => [item.shipmentId.toLowerCase(), item]));
+  await refreshMappings(mappingByShipment);
   const latest = await provider.getBlockNumber();
   const fromBlock = Number(process.env.WORKER_FROM_BLOCK || (flow?.blockHeight ?? latest));
   console.log(`Worker ${once ? "one-shot" : "continuous"} (${databaseEnabled() ? "database mappings" : "fallback mappings"}): scanning from ${fromBlock} to ${latest}`);
@@ -144,12 +153,16 @@ async function run() {
     return { args: parsed.args, transactionHash, blockNumber: Number(log.blockNumber), address: log.address, topics: log.topics, index: Number(log.logIndex ?? log.index) };
   }));
   console.log(`[Worker] Found ${events.length} MilestoneRecorded event(s) in scan range`);
-  for (const event of events) await safeProcessEvent(event, mappingByShipment);
+  for (const event of events) {
+    await refreshMappings(mappingByShipment);
+    await safeProcessEvent(event, mappingByShipment);
+  }
   const retryCount = await countRetryQueue();
   if (retryCount >= 3) await alert({ type: "RETRY_QUEUE", severity: "WARNING", title: "CargoProof retry queue is growing", message: `${retryCount} worker events are waiting for retry or resolution.`, dedupeKey: `retry-queue:${Math.floor(retryCount / 3)}` });
   if (!once) {
     sourceRegistry.on(sourceRegistry.filters.MilestoneRecorded(), async (...args) => {
       const event = args[args.length - 1];
+      await refreshMappings(mappingByShipment);
       await safeProcessEvent(event, mappingByShipment);
     });
     console.log("Worker listening for future MilestoneRecorded events");
