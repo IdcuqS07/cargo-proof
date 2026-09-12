@@ -36,7 +36,8 @@ async function queryLogsInChunks(rpc, address, topics, fromBlock, toBlock) {
   const events = [];
   for (let start = fromBlock; start <= toBlock; start += 5000) {
     const end = Math.min(start + 4999, toBlock);
-    events.push(...await rpc.getLogs({ address, topics, fromBlock: start, toBlock: end }));
+    const logs = await rpc.send("eth_getLogs", [{ address, topics, fromBlock: `0x${start.toString(16)}`, toBlock: `0x${end.toString(16)}` }]);
+    events.push(...logs);
   }
   return events;
 }
@@ -138,7 +139,7 @@ async function run() {
     const transactionHash = await resolveLogTransactionHash(log);
     if (!parsed) throw new Error(`Unable to decode MilestoneRecorded log ${transactionHash || "unknown"}`);
     if (!transactionHash) throw new Error(`Unable to resolve transaction hash for block ${log.blockNumber}`);
-    return { args: parsed.args, transactionHash, blockNumber: log.blockNumber, address: log.address, topics: log.topics, index: log.index };
+    return { args: parsed.args, transactionHash, blockNumber: Number(log.blockNumber), address: log.address, topics: log.topics, index: Number(log.logIndex ?? log.index) };
   }));
   console.log(`[Worker] Found ${events.length} MilestoneRecorded event(s) in scan range`);
   for (const event of events) await safeProcessEvent(event, mappingByShipment);
