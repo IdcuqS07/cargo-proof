@@ -47,6 +47,13 @@ async function resolveLogTransactionHash(log) {
     const tx = await provider.send("eth_getTransactionByBlockHashAndIndex", [log.blockHash, `0x${Number(log.transactionIndex).toString(16)}`]);
     return tx?.hash;
   }
+  if (log.blockHash) {
+    const receipts = await provider.send("eth_getBlockReceipts", [log.blockHash]);
+    for (const receipt of receipts || []) {
+      const match = (receipt.logs || []).some((item) => item.address?.toLowerCase() === log.address?.toLowerCase() && item.data === log.data && JSON.stringify(item.topics) === JSON.stringify(log.topics));
+      if (match) return receipt.transactionHash;
+    }
+  }
   return undefined;
 }
 
