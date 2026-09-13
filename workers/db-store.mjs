@@ -38,6 +38,23 @@ export async function updateWorkerEvent(sourceTxHash, patch) {
   await db.query(`UPDATE worker_events SET ${fields.join(", ")}, updatedAt = CURRENT_TIMESTAMP WHERE sourceTxHash = ?`, values);
 }
 
+export async function getWorkerEvent(sourceTxHash) {
+  const db = getPool();
+  if (!db) return null;
+  const [rows] = await db.query(
+    "SELECT sourceTxHash, status, nextRetryAt FROM worker_events WHERE sourceTxHash = ? LIMIT 1",
+    [sourceTxHash],
+  );
+  return rows[0] ?? null;
+}
+
+export function isRetryableWorkerEvent(event) {
+  if (!event) return true;
+  if (event.status === "RELEASED") return false;
+  if (event.status === "FAILED" && event.nextRetryAt && new Date(event.nextRetryAt).getTime() > Date.now()) return false;
+  return ["DETECTED", "PROOF_PENDING", "PROOF_ACCEPTED", "FAILED"].includes(event.status);
+}
+
 export async function createNotification(notification) {
   const db = getPool();
   if (!db) return;

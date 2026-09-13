@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { Contract, JsonRpcProvider, Wallet, keccak256, toUtf8Bytes } from "ethers";
 import { proofProvider } from "@gluwa/usc-sdk";
-import { closeDatabase, createNotification, countRetryQueue, databaseEnabled, listMappings, markWorkerFailure, updateWorkerEvent, upsertWorkerEvent } from "./db-store.mjs";
+import { closeDatabase, createNotification, countRetryQueue, databaseEnabled, getWorkerEvent, isRetryableWorkerEvent, listMappings, markWorkerFailure, updateWorkerEvent, upsertWorkerEvent } from "./db-store.mjs";
 import { notifyOwner } from "./notify.mjs";
 import { normalizeMilestoneEvent } from "./event-normalizer.mjs";
 
@@ -154,7 +154,14 @@ async function run() {
   }));
   console.log(`[Worker] Found ${events.length} MilestoneRecorded event(s) in scan range`);
   for (const event of events) {
+    const requestedShipmentId = process.env.WORKER_SHIPMENT_ID?.toLowerCase();
+    if (requestedShipmentId && event.args.shipmentId.toLowerCase() !== requestedShipmentId) continue;
     await refreshMappings(mappingByShipment);
+    const existing = await getWorkerEvent(event.transactionHash);
+    if (!isRetryableWorkerEvent(existing)) {
+      console.log(`[Worker] Skipping ${event.transactionHash}: ${existing.status}`);
+      continue;
+    }
     await safeProcessEvent(event, mappingByShipment);
   }
   const retryCount = await countRetryQueue();

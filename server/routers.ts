@@ -64,10 +64,10 @@ export const appRouter = router({
     createNotification: protectedProcedure.input(z.object({ type: z.enum(["PROOF_FAILED", "RETRY_QUEUE", "RELEASED"]), severity: z.enum(["INFO", "WARNING", "ERROR"]), title: z.string().min(1).max(180), message: z.string().min(1), dedupeKey: z.string().min(1).max(180) })).mutation(({ input }) => createNotification(input)),
     // Testnet operation: the worker is idempotent and this action is exposed
     // without OAuth so operators can recover failed indexing from the dashboard.
-    retryWorker: publicProcedure.mutation(async () => {
+    retryWorker: publicProcedure.input(z.object({ shipmentId: z.string().regex(/^0x[0-9a-fA-F]{64}$/).optional() }).optional()).mutation(async ({ input }) => {
       const workerPath = path.join(process.cwd(), "workers", "milestone-worker.mjs");
       try {
-        const result = await runWorker(process.execPath, [workerPath, "--once"], { env: process.env, timeout: 180_000, maxBuffer: 2 * 1024 * 1024 });
+        const result = await runWorker(process.execPath, [workerPath, "--once"], { env: { ...process.env, ...(input?.shipmentId ? { WORKER_SHIPMENT_ID: input.shipmentId.toLowerCase() } : {}) }, timeout: 180_000, maxBuffer: 2 * 1024 * 1024 });
         return { ok: true, output: `${result.stdout || ""}${result.stderr || ""}`.trim() };
       } catch (error) {
         const detail = error as Error & { stdout?: string; stderr?: string };
