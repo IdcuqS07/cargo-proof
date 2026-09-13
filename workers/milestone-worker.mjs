@@ -60,7 +60,11 @@ async function resolveLogTransactionHash(log) {
 
 async function alert(notification) {
   await createNotification(notification);
-  await notifyOwner({ title: notification.title, content: notification.message });
+  try {
+    await notifyOwner({ title: notification.title, content: notification.message });
+  } catch (error) {
+    console.warn(`[Notification] Owner notification skipped: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 async function releaseIfReady(event) {
