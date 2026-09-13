@@ -73,6 +73,23 @@ pnpm check
 pnpm build
 ```
 
+## Current MVP status
+
+The testnet MVP is now wired to the deployed Sepolia registry, Creditcoin financing contract, Attestcoin adapter, Railway API, MySQL worker index, and bounded retry worker. The browser submits only wallet transactions; proof generation and private-key operations remain server-side.
+
+The source contract is `contracts/ShipmentRegistry.sol`; it is intentionally included in the repository so a clean checkout can compile and reproduce the deployment artifacts. The deployed addresses and transaction hashes are recorded in `deployments/manifest.json` and in the deployment section above.
+
+Run the complete local verification suite with:
+
+```bash
+pnpm contracts:compile
+pnpm check
+pnpm test
+pnpm build
+```
+
+The contract acceptance tests cover compilation, the source-chain happy path, financing controls, replay protection, ordering, authorization, deadline, pause, and principal-invariant safeguards. The remaining hackathon deliverables are the deck and end-to-end demo video; these are intentionally maintained outside the code task.
+
 ## Next engineering steps
 
-The next phase should replace the in-memory demo data with the source-chain registry, Creditcoin financing contract, Attestcoin verification adapter, and polling worker defined in the PRD. The frontend should then consume indexed events and transaction receipts without changing the state-machine language shown in the current interface.
+Post-MVP work includes event indexing by transaction hash plus log index, a bounded retry-exhausted state, settlement/default controls in the dashboard, batch verification, risk timeline, and production-grade operator authorization.

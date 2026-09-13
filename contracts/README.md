@@ -1,6 +1,6 @@
 # CargoProof MVP Contracts
 
-This directory contains the two Solidity contracts required by the PRD.
+This directory contains the Solidity contracts required by the PRD: the Sepolia source registry, the Creditcoin financing contract, and the Attestcoin adapter.
 
 ## `ShipmentRegistry.sol`
 
@@ -20,12 +20,20 @@ The financing contract enforces ordered tranches, replay protection by milestone
 pnpm contracts:compile
 ```
 
-Artifacts are written to `artifacts/contracts/`. No deployment has been performed yet; RPC URLs, deployer keys, chain IDs, and the production Attestcoin adapter address are still required.
+Artifacts are written to `artifacts/contracts/`. The current testnet deployment is recorded in `../deployments/manifest.json`:
+
+| Contract | Network | Address |
+|---|---|---|
+| `ShipmentRegistry` | Ethereum Sepolia | `0xE3e0b01141860541B7247f0E05b1Ea6cd60556BE` |
+| `CargoProofFinancing` | Creditcoin testnet | `0xe378E93D5eC4dDa719355c5274d85e97c3a0A500` |
+| `AttestcoinAdapter` | Creditcoin testnet | `0xaAB31Fb58cf430689A48a5b3d2a632a38Fbb8f05` |
+
+These addresses are testnet-only. Re-deployment requires the RPC URLs and private keys described in `DEPLOYMENT.md`; never use production funds or commit private keys.
 
 ## Deployment order
 
 1. Deploy `ShipmentRegistry` to Ethereum Sepolia.
 2. Authorize the logistics operator with `setOperator`.
 3. Deploy `CargoProofFinancing` to Creditcoin testnet.
-4. Authorize the production ASC/Attestcoin adapter with `setAttestor`.
+4. Authorize the deployed ASC/Attestcoin adapter with `setAttestor`.
 5. Record both addresses and deployment transaction hashes in the deployment manifest and application environment.

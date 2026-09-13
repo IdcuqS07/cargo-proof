@@ -45,7 +45,7 @@ Use a separate Railway service or Railway scheduled execution with the same repo
 pnpm worker:once
 ```
 
-The worker is bounded and idempotent. It scans `WORKER_FROM_BLOCK` through the latest Sepolia block, creates or updates worker events, builds the proof, submits the adapter transaction, and releases the tranche only after acceptance.
+The worker is bounded and idempotent. It scans `WORKER_FROM_BLOCK` through the latest Sepolia block, creates or updates worker events, builds the proof, submits the adapter transaction, and releases the tranche only after acceptance. Failed events retry after five minutes up to five attempts; after that they remain failed for operator review instead of retrying forever.
 
 Start with a 5-minute schedule. Reduce to 1 minute only after RPC cost, retry volume, and database load are understood. Do not run both cron and persistent mode for the same deployment unless a lock or unique worker ownership mechanism has been added.
 

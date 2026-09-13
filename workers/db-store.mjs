@@ -1,6 +1,7 @@
 import mysql from "mysql2/promise";
 
 let pool;
+const MAX_RETRY_ATTEMPTS = 5;
 function getPool() {
   if (!pool && process.env.DATABASE_URL) pool = mysql.createPool(process.env.DATABASE_URL);
   return pool;
@@ -42,7 +43,7 @@ export async function getWorkerEvent(sourceTxHash) {
   const db = getPool();
   if (!db) return null;
   const [rows] = await db.query(
-    "SELECT sourceTxHash, status, nextRetryAt FROM worker_events WHERE sourceTxHash = ? LIMIT 1",
+    "SELECT sourceTxHash, status, attempts, nextRetryAt FROM worker_events WHERE sourceTxHash = ? LIMIT 1",
     [sourceTxHash],
   );
   return rows[0] ?? null;
@@ -51,6 +52,7 @@ export async function getWorkerEvent(sourceTxHash) {
 export function isRetryableWorkerEvent(event) {
   if (!event) return true;
   if (event.status === "RELEASED") return false;
+  if (Number(event.attempts ?? 0) >= MAX_RETRY_ATTEMPTS) return false;
   if (event.status === "FAILED" && event.nextRetryAt && new Date(event.nextRetryAt).getTime() > Date.now()) return false;
   return ["DETECTED", "PROOF_PENDING", "PROOF_ACCEPTED", "FAILED"].includes(event.status);
 }
@@ -77,7 +79,7 @@ export function databaseEnabled() {
 export async function markWorkerFailure(sourceTxHash, errorMessage) {
   const db = getPool();
   if (!db) return;
-  await db.query("UPDATE worker_events SET status = 'FAILED', lastError = ?, attempts = attempts + 1, nextRetryAt = DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 5 MINUTE), updatedAt = CURRENT_TIMESTAMP WHERE sourceTxHash = ?", [errorMessage.slice(0, 10000), sourceTxHash]);
+  await db.query("UPDATE worker_events SET status = 'FAILED', lastError = ?, attempts = attempts + 1, nextRetryAt = CASE WHEN attempts + 1 >= ? THEN NULL ELSE DATE_ADD(CURRENT_TIMESTAMP, INTERVAL 5 MINUTE) END, updatedAt = CURRENT_TIMESTAMP WHERE sourceTxHash = ?", [errorMessage.slice(0, 10000), MAX_RETRY_ATTEMPTS, sourceTxHash]);
 }
 
 export async function closeDatabase() {
