@@ -68,7 +68,8 @@ export const appRouter = router({
         const result = await runWorker(process.execPath, [workerPath, "--once"], { env: process.env, timeout: 180_000, maxBuffer: 2 * 1024 * 1024 });
         return { ok: true, output: `${result.stdout || ""}${result.stderr || ""}`.trim() };
       } catch (error) {
-        return { ok: false, output: error instanceof Error ? error.message : String(error) };
+        const detail = error as Error & { stdout?: string; stderr?: string };
+        return { ok: false, output: [detail.message, detail.stdout, detail.stderr].filter(Boolean).join("\n") };
       }
     }),
   }),
