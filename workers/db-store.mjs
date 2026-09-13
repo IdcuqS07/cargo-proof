@@ -24,6 +24,9 @@ export async function upsertWorkerEvent(event) {
 export async function updateWorkerEvent(sourceTxHash, patch) {
   const db = getPool();
   if (!db) return;
+  if (["PROOF_PENDING", "PROOF_ACCEPTED", "RELEASED"].includes(patch.status)) {
+    patch = { ...patch, lastError: null, nextRetryAt: null };
+  }
   const fields = [];
   const values = [];
   for (const [key, value] of Object.entries(patch)) {
@@ -46,7 +49,7 @@ export async function createNotification(notification) {
 export async function countRetryQueue() {
   const db = getPool();
   if (!db) return 0;
-  const [rows] = await db.query("SELECT COUNT(*) AS count FROM worker_events WHERE status IN ('DETECTED', 'PROOF_PENDING', 'FAILED')");
+  const [rows] = await db.query("SELECT COUNT(*) AS count FROM worker_events WHERE status = 'FAILED' AND (nextRetryAt IS NULL OR nextRetryAt <= CURRENT_TIMESTAMP)");
   return Number(rows[0]?.count ?? 0);
 }
 
