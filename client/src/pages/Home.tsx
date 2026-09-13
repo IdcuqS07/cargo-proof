@@ -47,8 +47,8 @@ type LiveShipment = { shipmentId: string; borrower: string; lender: string; mile
 
 const CREDITCOIN_RPC = "https://rpc.cc3-testnet.creditcoin.network";
 const SEPOLIA_RPC = "https://ethereum-sepolia-rpc.publicnode.com";
-const FINANCING_ADDRESS = "0xe378E93D5eC4dDa719355c5274d85e97c3a0A500";
-const SOURCE_REGISTRY_ADDRESS = "0xE3e0b01141860541B7247f0E05b1Ea6cd60556BE";
+const FINANCING_ADDRESS = import.meta.env.VITE_FINANCING_ADDRESS || "0xE5c9b4a12F7Db2Fa039c6885f36e8F353f4Cac02";
+const SOURCE_REGISTRY_ADDRESS = import.meta.env.VITE_SOURCE_REGISTRY_ADDRESS || "0xceac99B0CCb3c2418A0b59d751AD3d95E039dc60";
 const SOURCE_REGISTRY_READ_ABI = ["event ShipmentRegistered(bytes32 indexed shipmentId,address indexed borrower,address indexed lender,bytes32 cargoHash)", "event MilestoneRecorded(bytes32 indexed shipmentId,bytes32 indexed milestoneId,uint8 milestoneType,uint256 occurredAt,bytes32 metadataHash,bytes32 sourceTxHash)"];
 const FINANCING_READ_ABI = ["function getFacility(bytes32) view returns (tuple(bytes32 shipmentId,address lender,address borrower,uint256 principal,uint256 releasedAmount,uint8 trancheCount,uint8 nextMilestone,uint256 deadline,uint8 status,bool exists))", "event FacilityCreated(bytes32 indexed facilityId,bytes32 indexed shipmentId,address indexed lender,address borrower,uint256 principal,uint8 trancheCount,uint256 deadline)", "event TrancheReleased(bytes32 indexed facilityId,uint8 indexed trancheIndex,uint256 amount,bytes32 milestoneId,bytes32 proofHash,bytes32 payoutTxHash)"];
 

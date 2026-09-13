@@ -26,9 +26,9 @@ Artifacts are written to `artifacts/contracts/`. The current testnet deployment 
 
 | Contract | Network | Address |
 |---|---|---|
-| `ShipmentRegistry` | Ethereum Sepolia | `0xE3e0b01141860541B7247f0E05b1Ea6cd60556BE` |
-| `CargoProofFinancing` | Creditcoin testnet | `0xe378E93D5eC4dDa719355c5274d85e97c3a0A500` |
-| `AttestcoinAdapter` | Creditcoin testnet | `0xaAB31Fb58cf430689A48a5b3d2a632a38Fbb8f05` |
+| `ShipmentRegistry` | Ethereum Sepolia | `0xceac99B0CCb3c2418A0b59d751AD3d95E039dc60` |
+| `CargoProofFinancing` | Creditcoin testnet | `0xE5c9b4a12F7Db2Fa039c6885f36e8F353f4Cac02` |
+| `AttestcoinAdapter` | Creditcoin testnet | `0xE39da42fED8fCB816f20F0176e1A4c94213c133c` |
 
 These addresses are testnet-only. Re-deployment requires the RPC URLs and private keys described in `DEPLOYMENT.md`; never use production funds or commit private keys.
 

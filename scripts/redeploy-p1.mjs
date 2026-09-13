@@ -27,19 +27,22 @@ if (!broadcast) {
   process.exit(0);
 }
 
-const registry = await new ContractFactory(artifact("ShipmentRegistry"), artifact("ShipmentRegistry").bytecode, sepoliaWallet).deploy();
+const registryArtifact = artifact("ShipmentRegistry");
+const financingArtifact = artifact("CargoProofFinancing");
+const adapterArtifact = artifact("AttestcoinAdapter");
+const registry = await new ContractFactory(registryArtifact.abi, registryArtifact.bytecode, sepoliaWallet).deploy();
 await registry.waitForDeployment();
 const registryAddress = await registry.getAddress();
 const registryTx = registry.deploymentTransaction();
 console.log(`ShipmentRegistry: ${registryAddress} (${registryTx?.hash ?? "unknown"})`);
 
-const financing = await new ContractFactory(artifact("CargoProofFinancing"), artifact("CargoProofFinancing").bytecode, creditcoinWallet).deploy();
+const financing = await new ContractFactory(financingArtifact.abi, financingArtifact.bytecode, creditcoinWallet).deploy();
 await financing.waitForDeployment();
 const financingAddress = await financing.getAddress();
 const financingTx = financing.deploymentTransaction();
 console.log(`CargoProofFinancing: ${financingAddress} (${financingTx?.hash ?? "unknown"})`);
 
-const adapter = await new ContractFactory(artifact("AttestcoinAdapter"), artifact("AttestcoinAdapter").bytecode, creditcoinWallet).deploy(financingAddress, registryAddress);
+const adapter = await new ContractFactory(adapterArtifact.abi, adapterArtifact.bytecode, creditcoinWallet).deploy(financingAddress, registryAddress);
 await adapter.waitForDeployment();
 const adapterAddress = await adapter.getAddress();
 const adapterTx = adapter.deploymentTransaction();

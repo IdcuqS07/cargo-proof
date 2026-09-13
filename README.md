@@ -31,7 +31,7 @@ Compile both contracts and generate ABI artifacts with:
 pnpm contracts:compile
 ```
 
-Deployment completed on 5 September 2026. `ShipmentRegistry` is deployed on Ethereum Sepolia at `0xE3e0b01141860541B7247f0E05b1Ea6cd60556BE` (tx `0xbba98455b91e16948c833cd3d4087ccb279ea613f7eb50fa86de27061bb8e4db`). `CargoProofFinancing` is deployed on Creditcoin testnet at `0xe378E93D5eC4dDa719355c5274d85e97c3a0A500` (tx `0xd4f2af2dfab90039cee87f67b7e775a467960485c1c9b14b0840bae7eb7a2477`). `AttestcoinAdapter` is deployed at `0xaAB31Fb58cf430689A48a5b3d2a632a38Fbb8f05` and authorized via `setAttestor` transaction `0x689135dae381a498daddbd15a30c2a9014d7dcd474074c973e38559e19094863`. A real Sepolia `MilestoneRecorded` proof was accepted by CargoProof in transaction `0xea6a67ad4e44e6c5f972ab374fac9ac056aba69f50ba7614e6576c8ee9713e66`.
+P1 redeployment completed on 13 September 2026. `ShipmentRegistry` is deployed on Ethereum Sepolia at `0xceac99B0CCb3c2418A0b59d751AD3d95E039dc60` (tx `0x514c43c989b10ae5d0aa68b7888e386374acd00ec92b4eb2ee1d8b8b1a3bffc2`). `CargoProofFinancing` is deployed on Creditcoin testnet at `0xE5c9b4a12F7Db2Fa039c6885f36e8F353f4Cac02` (tx `0xcd1514b4a6938d5b448f043beec16b149c7e7bf72ca85b655abdff13630412de`). `AttestcoinAdapter` is deployed at `0xE39da42fED8fCB816f20F0176e1A4c94213c133c` and authorized via `setAttestor` transaction `0x65c3b2cac77522ea808e10f9d03cdb633a74b4fbaafcbfbe21150df039a370bd`.
 
 All values and transactions shown in this frontend are simulated. The UI intentionally distinguishes an on-chain source event, an attested event, a proof verified by Creditcoin ASC, and a payout. CargoProof does not claim to verify the physical world directly; it represents the trust boundary documented in the PRD.
 
