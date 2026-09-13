@@ -11,6 +11,8 @@
     "contracts:compile": "node scripts/compile-contracts.mjs",
     "contracts:deploy:dry-run": "node scripts/deploy-contracts.mjs",
     "contracts:deploy": "node scripts/deploy-contracts.mjs --broadcast",
+    "contracts:redeploy:p1": "node scripts/redeploy-p1.mjs",
+    "contracts:redeploy:p1:broadcast": "node scripts/redeploy-p1.mjs --broadcast",
     "attestcoin:deploy": "node scripts/deploy-adapter.mjs",
     "db:migrate": "node scripts/ensure-worker-schema.mjs",
     "worker:once": "pnpm db:migrate && node workers/milestone-worker.mjs",

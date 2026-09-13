@@ -51,7 +51,13 @@ describe("CargoProof Solidity acceptance surface", () => {
 
   it("exposes financing release, pause, and settlement controls", () => {
     const abi = compileContracts()["CargoProofFinancing.sol"].CargoProofFinancing.abi;
-    expect(names(abi, "function")).toEqual(expect.arrayContaining(["createFacility", "submitAttestedMilestone", "releaseTranche", "pauseFacility", "defaultFacility", "settleFacility", "blockTranche", "getFacility", "getTranche"]));
+    expect(names(abi, "function")).toEqual(expect.arrayContaining(["createFacility", "submitAttestedMilestone", "releaseTranche", "pauseFacility", "defaultFacility", "expireFacility", "settleFacility", "blockTranche", "getFacility", "getTranche"]));
+  });
+
+  it("exposes batch verification and multi-signer adapter controls", () => {
+    const abi = compileContracts()["AttestcoinAdapter.sol"].AttestcoinAdapter.abi;
+    expect(names(abi, "function")).toEqual(expect.arrayContaining(["executeVerifiedMilestone", "executeVerifiedMilestones", "setSubmitter"]));
+    expect(fs.readFileSync(path.join(contractDir, "ShipmentRegistry.sol"), "utf8")).toContain("setOperator");
   });
 
   it("documents and enforces at least five source-chain negative cases", () => {

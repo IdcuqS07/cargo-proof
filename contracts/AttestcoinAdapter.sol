@@ -28,6 +28,20 @@ contract AttestcoinAdapter {
     mapping(bytes32 => bool) public processedQueries;
     mapping(address => bool) public submitters;
 
+    struct VerifiedMilestoneQuery {
+        uint64 chainKey;
+        uint64 blockHeight;
+        bytes encodedTransaction;
+        bytes32 merkleRoot;
+        INativeQueryVerifier.MerkleProofEntry[] siblings;
+        bytes32 lowerEndpointDigest;
+        bytes32[] continuityRoots;
+        bytes32 facilityId;
+        bytes32 shipmentId;
+        bytes32 milestoneId;
+        uint8 milestoneType;
+    }
+
     error NotOwner();
     error NotSubmitter();
     error InvalidAddress();
@@ -76,6 +90,33 @@ contract AttestcoinAdapter {
         bytes32 milestoneId,
         uint8 milestoneType
     ) external onlySubmitter returns (bytes32 queryId) {
+        return _executeVerifiedMilestone(chainKey, blockHeight, encodedTransaction, merkleRoot, siblings, lowerEndpointDigest, continuityRoots, facilityId, shipmentId, milestoneId, milestoneType);
+    }
+
+    /// @notice Verifies and forwards several independent source-chain queries in one transaction.
+    /// @dev Each query keeps its own replay-protected query ID and proof hash.
+    function executeVerifiedMilestones(VerifiedMilestoneQuery[] calldata queries) external onlySubmitter returns (bytes32[] memory queryIds) {
+        if (queries.length == 0) revert InvalidProof();
+        queryIds = new bytes32[](queries.length);
+        for (uint256 i = 0; i < queries.length; i++) {
+            VerifiedMilestoneQuery calldata query = queries[i];
+            queryIds[i] = _executeVerifiedMilestone(query.chainKey, query.blockHeight, query.encodedTransaction, query.merkleRoot, query.siblings, query.lowerEndpointDigest, query.continuityRoots, query.facilityId, query.shipmentId, query.milestoneId, query.milestoneType);
+        }
+    }
+
+    function _executeVerifiedMilestone(
+        uint64 chainKey,
+        uint64 blockHeight,
+        bytes calldata encodedTransaction,
+        bytes32 merkleRoot,
+        INativeQueryVerifier.MerkleProofEntry[] calldata siblings,
+        bytes32 lowerEndpointDigest,
+        bytes32[] calldata continuityRoots,
+        bytes32 facilityId,
+        bytes32 shipmentId,
+        bytes32 milestoneId,
+        uint8 milestoneType
+    ) internal returns (bytes32 queryId) {
         INativeQueryVerifier.MerkleProof memory merkleProof = INativeQueryVerifier.MerkleProof({root: merkleRoot, siblings: siblings});
         uint64 txIndex = verifier.calculateTxIndex(merkleProof);
         queryId = keccak256(abi.encode(chainKey, blockHeight, txIndex));

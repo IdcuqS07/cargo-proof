@@ -64,6 +64,7 @@ contract CargoProofFinancing {
     error DeadlinePassed();
     error InvariantViolation();
     error NotReadyToSettle();
+    error DeadlineNotReached();
 
     event AdminUpdated(address indexed account, bool allowed);
     event AttestorUpdated(address indexed account, bool allowed);
@@ -227,6 +228,16 @@ contract CargoProofFinancing {
     function defaultFacility(bytes32 facilityId) external onlyAdmin facilityExists(facilityId) {
         Facility storage facility = facilities[facilityId];
         if (facility.status == FacilityStatus.SETTLED || facility.status == FacilityStatus.CANCELLED) revert InvalidStatus();
+        facility.status = FacilityStatus.DEFAULTED;
+        emit FacilityDefaulted(facilityId, msg.sender);
+    }
+
+    /// @notice Anyone may transition an expired active or paused facility to DEFAULTED.
+    /// @dev Expiry must not depend on an operator being online.
+    function expireFacility(bytes32 facilityId) external facilityExists(facilityId) {
+        Facility storage facility = facilities[facilityId];
+        if (facility.status != FacilityStatus.ACTIVE && facility.status != FacilityStatus.PAUSED) revert InvalidStatus();
+        if (block.timestamp <= facility.deadline) revert DeadlineNotReached();
         facility.status = FacilityStatus.DEFAULTED;
         emit FacilityDefaulted(facilityId, msg.sender);
     }

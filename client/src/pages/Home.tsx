@@ -127,7 +127,8 @@ function money(value: number) {
 
 function downloadReceipt(facility: Facility) {
   const receipt = {
-    receiptVersion: "cargo-proof-demo-v1",
+    receiptVersion: "cargo-proof-p1-v2",
+    receiptType: "milestone-financing-proof-receipt",
     facilityId: facility.id,
     shipmentId: facility.shipment,
     sourceChain: "Ethereum Sepolia",
@@ -137,6 +138,9 @@ function downloadReceipt(facility: Facility) {
     facilityStatus: facility.status,
     principal: facility.amount,
     releasedAmount: facility.released,
+    verificationState: facility.status === "SETTLED" ? "SETTLED" : facility.status,
+    generatedFrom: "CargoProof indexed testnet state",
+    simulation: { estimatedExecutionFeeCredits: 0.02, estimatedAttestationMinutes: 3, disclaimer: "Indicative testnet estimates only; not a fee quote or financial commitment." },
     trustBoundary: "Verifies an authorized on-chain event; does not independently verify physical reality.",
     generatedAt: new Date().toISOString(),
   };
@@ -185,6 +189,18 @@ function Pipeline({ events }: { events: LiveWorkerEvent[] }) {
   const phase = latest?.status === "RELEASED" ? 4 : latest?.status === "PROOF_ACCEPTED" ? 3 : latest?.status === "PROOF_PENDING" ? 2 : latest?.status === "DETECTED" ? 1 : 0;
   const steps = [{ title: "Source event", copy: "Ethereum Sepolia", tag: phase >= 1 ? "Detected" : "Awaiting event", icon: Ship }, { title: "Attestation", copy: "Attestcoin Protocol", tag: phase >= 2 ? "Proof pending" : "Pending", icon: ShieldCheck }, { title: "Proof check", copy: "Creditcoin ASC", tag: phase >= 3 ? "Accepted" : "Pending", icon: FileCheck2 }, { title: "Tranche payout", copy: "Financing contract", tag: phase >= 4 ? "Released" : "Next release", icon: CircleDollarSign }];
   return <div className="pipeline-card surface"><div className="pipeline-head"><div><div className="section-title">Verification pipeline</div><p>Live status from Sepolia events, worker events, and Creditcoin receipts.</p></div><div className="pipeline-meta"><span className="network-dot" /><strong>{latest ? "LIVE INDEXED" : "WAITING FOR EVENT"}</strong><span>·</span><span>{latest ? `Source ${latest.sourceTxHash.slice(0, 10)}…` : "No worker event"}</span></div></div><div className="pipeline">{steps.map((step, index) => <Fragment key={step.title}><div className={`pipe-step ${index < phase ? "complete" : index === phase ? "active" : ""}`}><div className="pipe-circle"><step.icon size={15} strokeWidth={1.8} /></div><h4>{step.title}</h4><p>{step.copy}</p><span className="pipe-tag">{step.tag}</span></div>{index < steps.length - 1 && <div key={`${step.title}-line`} className={`pipe-line ${index < phase ? "complete" : ""}`} />}</Fragment>)}</div></div>;
+}
+
+function RiskTimeline({ events, facilities }: { events: LiveWorkerEvent[]; facilities: Facility[] }) {
+  const failed = events.filter((event) => event.status === "FAILED").length;
+  const pending = events.filter((event) => ["DETECTED", "PROOF_PENDING"].includes(event.status)).length;
+  const released = events.filter((event) => event.status === "RELEASED").length;
+  const riskScore = Math.min(100, failed * 35 + pending * 12 + facilities.filter((facility) => facility.status === "PAUSED" || facility.status === "DEFAULTED").length * 25);
+  const riskLabel = riskScore >= 60 ? "HIGH" : riskScore >= 25 ? "MODERATE" : "LOW";
+  const estimatedMinutes = pending ? pending * 3 : 0;
+  const estimatedFees = events.length ? events.length * 0.02 + released * 0.08 : 0;
+  const timeline = events.slice(0, 4).map((event) => ({ label: event.status.replaceAll("_", " "), detail: `${event.sourceTxHash.slice(0, 10)}… · ${new Date(event.updatedAt).toLocaleString()}`, tone: event.status === "FAILED" ? "danger" : event.status === "RELEASED" ? "lime" : "violet" }));
+  return <div className="dashboard-grid"><div className="view-card surface"><div className="section-row"><div><span className="section-title">Risk timeline</span><span className="section-subtitle">Derived from indexed worker events</span></div><span className={`status-pill ${riskScore >= 60 ? "status-danger" : riskScore >= 25 ? "status-paused" : "status-active"}`}><span className="status-dot" />{riskLabel} · {riskScore}/100</span></div><div className="activity-list">{timeline.length ? timeline.map((item, index) => <div className="activity-item" key={`${item.label}-${index}`}><div className={`activity-icon ${item.tone}`}><GitBranch size={11} /></div><div className="activity-copy"><p><strong>{item.label}</strong></p><small>{item.detail}</small></div></div>) : <div className="empty-note">Risk timeline starts when the worker indexes a source milestone.</div>}</div></div><div className="view-card surface"><div className="section-row"><div><span className="section-title">Execution simulation</span><span className="section-subtitle">Indicative testnet estimates</span></div><Zap size={15} color="#c7f36b" /></div><div className="proof-list"><div className="proof-row"><div className="proof-number"><Clock3 size={13} /></div><div><strong>Estimated next proof</strong><small>{estimatedMinutes ? `~${estimatedMinutes} minutes while attestation is pending` : "Ready when the next milestone is recorded"}</small></div></div><div className="proof-row"><div className="proof-number"><CircleDollarSign size={13} /></div><div><strong>Estimated execution fees</strong><small>{estimatedFees ? `~${estimatedFees.toFixed(2)} testnet credits across indexed events` : "No indexed execution yet"}</small></div></div><div className="proof-row"><div className="proof-number"><ShieldCheck size={13} /></div><div><strong>Current evidence</strong><small>{released} released · {pending} pending · {failed} failed</small></div></div></div></div></div>;
 }
 
 function ActivityFeed({ notifications = [], workerEvents = [], onRetryWorker, retrying = false }: { notifications?: Array<{ id: number; severity: string; title: string; message: string }>; workerEvents?: Array<{ id: number; status: string; milestoneId: string; shipmentId: string; facilityId: string | null; sourceTxHash: string; proofTxHash: string | null; releaseTxHash: string | null; updatedAt: Date | string }>; onRetryWorker: () => void; retrying?: boolean }) {
@@ -247,6 +263,7 @@ function Overview({ facilities, wallet, profileName, onPause, onInspect, onCreat
     <div className="metrics-grid"><MetricCard label="Total facilities" value={String(facilities.length).padStart(2, "0")} detail={`${needsAttention} needs attention`} icon={CreditCard} tone="lime" /><MetricCard label="Capital deployed" value={money(totalReleased)} detail={`${totalPrincipal ? Math.round((totalReleased / totalPrincipal) * 100) : 0}% of principal`} icon={CircleDollarSign} tone="violet" /><MetricCard label="Pending tranches" value={String(pendingFacilities).padStart(2, "0")} detail={`Across ${pendingFacilities} facilities`} icon={Clock3} tone="amber" /><MetricCard label="Proof success rate" value={proofRate} detail={workerEvents.length ? `Based on ${workerEvents.length} worker events` : "No worker events indexed"} icon={BadgeCheck} tone="blue" /></div>
     {onchainFacility && <div className="onchain-strip surface"><div><span className="eyebrow">Live on-chain snapshot</span><strong>Creditcoin facility {onchainFacility.facilityId.slice(0, 10)}…</strong><small>Shipment {onchainFacility.shipmentId.slice(0, 10)}… · tranche {onchainFacility.nextMilestone} of {onchainFacility.trancheCount} next</small></div><div className="onchain-values"><span><small>Principal</small><strong>{money(Number(onchainFacility.principal) / 1e0)}</strong></span><span><small>Released</small><strong>{money(Number(onchainFacility.released) / 1e0)}</strong></span><span className="status-pill status-active"><span className="status-dot" />{onchainFacility.status === 0 ? "ACTIVE" : "ON-CHAIN"}</span></div></div>}
     <Pipeline events={workerEvents} />
+    <RiskTimeline events={workerEvents} facilities={facilities} />
     <div className="dashboard-grid"><FacilityTable facilities={facilities} onPause={onPause} onInspect={onInspect} /><ActivityFeed notifications={notifications} workerEvents={workerEvents} onRetryWorker={onRetryWorker} retrying={retryingWorker} /></div>
   </>;
 }

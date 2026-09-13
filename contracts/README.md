@@ -14,6 +14,8 @@ Deploy this contract to Creditcoin testnet. The deployer starts as admin and att
 
 The financing contract enforces ordered tranches, replay protection by milestone ID, proof consumption, facility status guards, deadline guards, total payout <= principal, pause/default/settle transitions, and blocked tranche recording.
 
+P1 adds `expireFacility`, which can be called by anyone after the deadline to move an active or paused facility to `DEFAULTED`. `AttestcoinAdapter.executeVerifiedMilestones` batches independent proof queries while preserving per-query replay protection. Registry operators and adapter submitters are managed independently through `setOperator` and `setSubmitter`, enabling multi-signer operations.
+
 ## Compile
 
 ```bash
@@ -29,6 +31,8 @@ Artifacts are written to `artifacts/contracts/`. The current testnet deployment 
 | `AttestcoinAdapter` | Creditcoin testnet | `0xaAB31Fb58cf430689A48a5b3d2a632a38Fbb8f05` |
 
 These addresses are testnet-only. Re-deployment requires the RPC URLs and private keys described in `DEPLOYMENT.md`; never use production funds or commit private keys.
+
+The P1 contract functions are present in source and compile-time tested. Because deployed bytecode is immutable, the current addresses above do not contain the P1 additions until a coordinated redeployment and manifest update is performed.
 
 ## Deployment order
 
