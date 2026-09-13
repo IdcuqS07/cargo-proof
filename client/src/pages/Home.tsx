@@ -297,7 +297,10 @@ export default function Home() {
     setRetryingWorker(true);
     try {
       const result = await retryWorkerMutation.mutateAsync();
-      if (!result.ok) toast.error(`Worker retry failed: ${result.output.slice(0, 240)}`);
+      if (!result.ok) {
+        const detail = result.output.split("\n").filter(Boolean).slice(-8).join(" ").slice(-900);
+        toast.error(`Worker retry failed: ${detail || "worker exited with an unknown error"}`);
+      }
       else if (result.output.includes("Tranche released")) toast.success("Worker retried successfully and released a tranche");
       else if (result.output.includes("not yet attested")) toast("Worker is waiting for the next attested Sepolia height");
       else toast.success("Worker retry completed");
