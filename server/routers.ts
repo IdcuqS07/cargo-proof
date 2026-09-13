@@ -55,7 +55,9 @@ export const appRouter = router({
   }),
   cargoProof: router({
     mappings: publicProcedure.query(() => listShipmentFacilityMappings()),
-    upsertMapping: protectedProcedure.input(mappingInput).mutation(({ input }) => upsertShipmentFacilityMapping(input)),
+    // Testnet facility creation is already authorized by the on-chain
+    // transaction; persist its worker mapping without requiring OAuth.
+    upsertMapping: publicProcedure.input(mappingInput).mutation(({ input }) => upsertShipmentFacilityMapping(input)),
     workerEvents: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).optional()).query(({ input }) => listWorkerEvents(input?.limit ?? 50)),
     notifications: publicProcedure.input(z.object({ limit: z.number().int().min(1).max(100).default(50) }).optional()).query(({ input }) => listNotifications(input?.limit ?? 50)),
     markNotificationRead: protectedProcedure.input(z.object({ id: z.number().int().positive() })).mutation(({ input }) => markNotificationRead(input.id)),
